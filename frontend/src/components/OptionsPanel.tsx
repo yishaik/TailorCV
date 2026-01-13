@@ -8,6 +8,7 @@ import {
     ToggleButtonGroup,
     ToggleButton,
     Tooltip,
+    TextField,
 } from '@mui/material';
 import ShieldIcon from '@mui/icons-material/Shield';
 import BalanceIcon from '@mui/icons-material/Balance';
@@ -21,6 +22,8 @@ interface OptionsPanelProps {
     onStrictnessChange: (value: StrictnessLevel) => void;
     outputFormat: OutputFormat;
     onOutputFormatChange: (value: OutputFormat) => void;
+    userInstructions: string;
+    onUserInstructionsChange: (value: string) => void;
     disabled?: boolean;
 }
 
@@ -37,6 +40,8 @@ export function OptionsPanel({
     onStrictnessChange,
     outputFormat,
     onOutputFormatChange,
+    userInstructions,
+    onUserInstructionsChange,
     disabled = false,
 }: OptionsPanelProps) {
     return (
@@ -157,6 +162,41 @@ export function OptionsPanel({
                     <ToggleButton value="docx">Word</ToggleButton>
                     <ToggleButton value="pdf">PDF</ToggleButton>
                 </ToggleButtonGroup>
+            </Box>
+
+            {/* User Instructions */}
+            <Box sx={{ mt: 3 }}>
+                <Typography sx={{ color: '#fff', mb: 1, fontWeight: 500 }}>
+                    Notes for the Model
+                </Typography>
+                <TextField
+                    fullWidth
+                    multiline
+                    minRows={3}
+                    value={userInstructions}
+                    onChange={(e) => onUserInstructionsChange(e.target.value)}
+                    disabled={disabled}
+                    placeholder="Add preferences for tone, emphasis, or formatting (optional)."
+                    helperText="Example: Keep tone formal, emphasize leadership, avoid first-person in bullets."
+                    sx={{
+                        '& .MuiOutlinedInput-root': {
+                            backgroundColor: 'rgba(0,0,0,0.2)',
+                            color: '#fff',
+                            '& fieldset': {
+                                borderColor: 'rgba(255,255,255,0.2)',
+                            },
+                            '&:hover fieldset': {
+                                borderColor: 'rgba(255,255,255,0.3)',
+                            },
+                            '&.Mui-focused fieldset': {
+                                borderColor: 'primary.main',
+                            },
+                        },
+                        '& .MuiFormHelperText-root': {
+                            color: 'text.secondary',
+                        },
+                    }}
+                />
             </Box>
         </Paper>
     );

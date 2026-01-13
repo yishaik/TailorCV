@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ThemeProvider,
   createTheme,
@@ -11,7 +11,9 @@ import {
   StepLabel,
   Button,
   Alert,
+  AlertTitle,
   CircularProgress,
+  LinearProgress,
   AppBar,
   Toolbar,
   IconButton,
@@ -101,11 +103,19 @@ function App() {
   const [generateCoverLetter, setGenerateCoverLetter] = useState(true);
   const [strictnessLevel, setStrictnessLevel] = useState<StrictnessLevel>('moderate');
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('markdown');
+  const [userInstructions, setUserInstructions] = useState('');
 
   // Result state
   const [result, setResult] = useState<TailorResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{
+    title: string;
+    message: string;
+    details?: string[];
+  } | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [progressLabel, setProgressLabel] = useState('');
+  const progressTimer = useRef<number | null>(null);
 
   // Validation
   const isStep1Valid = jobDescription.length >= 50 && (cvFile !== null || cvText.length >= 100);
@@ -128,18 +138,118 @@ function App() {
     setError(null);
   };
 
+  const startProgress = () => {
+    const stages = [
+      { label: 'Extracting job requirements', value: 18 },
+      { label: 'Parsing CV content', value: 36 },
+      { label: 'Mapping evidence', value: 56 },
+      { label: 'Generating tailored CV', value: 74 },
+      { label: 'Running quality checks', value: 88 },
+      { label: 'Finalizing results', value: 96 },
+    ];
+    let stageIndex = 0;
+    setProgress(stages[0].value);
+    setProgressLabel(stages[0].label);
+    if (progressTimer.current) {
+      window.clearInterval(progressTimer.current);
+    }
+    progressTimer.current = window.setInterval(() => {
+      stageIndex = Math.min(stageIndex + 1, stages.length - 1);
+      setProgress(stages[stageIndex].value);
+      setProgressLabel(stages[stageIndex].label);
+    }, 1200);
+  };
+
+  const stopProgress = () => {
+    if (progressTimer.current) {
+      window.clearInterval(progressTimer.current);
+      progressTimer.current = null;
+    }
+    setProgress(0);
+    setProgressLabel('');
+  };
+
+  const formatError = (err: unknown) => {
+    if (isApiError(err)) {
+      const apiError = err.response.data;
+      switch (apiError.error) {
+        case 'FABRICATION_DETECTED':
+          return {
+            title: 'Quality check blocked the output',
+            message:
+              'Potential fabrication was detected. Review your input, lower strictness, or add more evidence.',
+            details: apiError.details,
+          };
+        case 'INVALID_FILE_TYPE':
+          return {
+            title: 'Unsupported file type',
+            message: apiError.message,
+          };
+        case 'PARSE_FAILURE':
+          return {
+            title: 'Could not read the file',
+            message:
+              'Try a different file or paste the CV text directly. The uploaded file may be scanned or protected.',
+          };
+        case 'EXTRACTION_FAILED':
+          return {
+            title: 'Extraction failed',
+            message: 'The text could not be analyzed. Please try again.',
+          };
+        case 'PROCESSING_ERROR':
+          return {
+            title: 'Processing error',
+            message: 'The server failed to complete the request. Please retry.',
+          };
+        default:
+          return {
+            title: apiError.error || 'Request failed',
+            message: apiError.message || 'Please try again.',
+            details: apiError.details,
+          };
+      }
+    }
+
+    if (typeof err === 'object' && err !== null && 'response' in err) {
+      const response = (err as any).response;
+      if (response?.status === 422 && Array.isArray(response?.data?.detail)) {
+        const details = response.data.detail.map((item: any) => item.msg);
+        return {
+          title: 'Invalid input',
+          message: 'Please check the required fields and try again.',
+          details,
+        };
+      }
+    }
+
+    if (err instanceof Error) {
+      return {
+        title: 'Unexpected error',
+        message: err.message,
+      };
+    }
+
+    return {
+      title: 'Unexpected error',
+      message: 'An unexpected error occurred. Please try again.',
+    };
+  };
+
   const handleTailor = async () => {
     setLoading(true);
     setError(null);
+    startProgress();
 
     try {
       let tailorResult: TailorResult;
+      const trimmedInstructions = userInstructions.trim();
 
       if (cvFile) {
         tailorResult = await tailorCVWithFile(jobDescription, cvFile, {
           generateCoverLetter,
           strictnessLevel,
           outputFormat,
+          userInstructions: trimmedInstructions || undefined,
         });
       } else {
         tailorResult = await tailorCV({
@@ -150,6 +260,7 @@ function App() {
             output_format: outputFormat,
             language: 'en',
             strictness_level: strictnessLevel,
+            user_instructions: trimmedInstructions || null,
           },
         });
       }
@@ -158,17 +269,10 @@ function App() {
       setActiveStep(2);
     } catch (err) {
       console.error('Tailoring failed:', err);
-
-      if (isApiError(err)) {
-        const apiError = err.response.data;
-        setError(`${apiError.error}: ${apiError.message}`);
-      } else if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('An unexpected error occurred. Please try again.');
-      }
+      setError(formatError(err));
     } finally {
       setLoading(false);
+      stopProgress();
     }
   };
 
@@ -214,8 +318,41 @@ function App() {
         {/* Error Alert */}
         {error && (
           <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
-            {error}
+            <AlertTitle>{error.title}</AlertTitle>
+            {error.message}
+            {error.details && error.details.length > 0 && (
+              <Box component="ul" sx={{ mt: 1, mb: 0, pl: 3 }}>
+                {error.details.map((detail) => (
+                  <li key={detail}>{detail}</li>
+                ))}
+              </Box>
+            )}
           </Alert>
+        )}
+
+        {loading && (
+          <Box sx={{ mb: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                {progressLabel || 'Working...'}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                {progress ? `${progress}%` : ''}
+              </Typography>
+            </Box>
+            <LinearProgress
+              variant={progress ? 'determinate' : 'indeterminate'}
+              value={progress}
+              sx={{
+                height: 8,
+                borderRadius: 6,
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                '& .MuiLinearProgress-bar': {
+                  background: 'linear-gradient(90deg, #7c4dff 0%, #00bcd4 100%)',
+                },
+              }}
+            />
+          </Box>
         )}
 
         {/* Step Content */}
@@ -267,6 +404,8 @@ function App() {
               onStrictnessChange={setStrictnessLevel}
               outputFormat={outputFormat}
               onOutputFormatChange={setOutputFormat}
+              userInstructions={userInstructions}
+              onUserInstructionsChange={setUserInstructions}
               disabled={loading}
             />
           </Box>

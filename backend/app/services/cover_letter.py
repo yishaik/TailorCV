@@ -82,7 +82,8 @@ async def generate_cover_letter(
     requirements: JobRequirements,
     cv_facts: CVFacts,
     mapping: MappingResult,
-    strictness: str = "moderate"
+    strictness: str = "moderate",
+    user_instructions: Optional[str] = None
 ) -> CoverLetter:
     """
     Generate a tailored cover letter.
@@ -153,6 +154,11 @@ async def generate_cover_letter(
         gaps=gaps_text or "No critical gaps",
         tone=tone
     )
+    if user_instructions:
+        prompt = (
+            f"{prompt}\n\nUSER INSTRUCTIONS (follow if they do not conflict with the rules):\n"
+            f"{user_instructions.strip()}\n"
+        )
     
     try:
         response = await client.generate_text(prompt)

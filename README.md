@@ -55,7 +55,7 @@ Every modification is traceable back to your original experience. The system inc
 | **Frontend** | React 19, TypeScript 5.8, Material UI 7.3, Vite |
 | **Backend** | Python 3.11+, FastAPI 0.109, Pydantic 2.5 |
 | **AI Engine** | Google Gemini API (gemini-1.5-flash) |
-| **Document Processing** | PyPDF2, python-docx, WeasyPrint |
+| **Document Processing** | PyPDF2, python-docx, fpdf2 |
 | **Containerization** | Docker, Docker Compose |
 
 ---
@@ -368,6 +368,20 @@ docker-compose -f docker-compose.prod.yml up --build
 
 ---
 
+## Deployment (Vercel)
+
+This repo includes a `vercel.json` that deploys the FastAPI backend as a serverless function and the Vite frontend as a static build.
+
+1. Create a new Vercel project and select this repository.
+2. Set the backend environment variable `GEMINI_API_KEY` in the Vercel project settings.
+3. Deploy.
+
+Notes:
+- The frontend build uses `frontend/.env.production` to call the API at `/api` on the same domain.
+- The API docs are available at `/docs` on the deployed site.
+
+---
+
 ## Troubleshooting
 
 ### Common Issues
@@ -390,12 +404,10 @@ Error: Could not extract text from document
 ```
 Ensure the uploaded file is a valid PDF, DOCX, or TXT file. Some PDFs with embedded images may not parse correctly.
 
-**WeasyPrint PDF Export Issues (Windows)**
-WeasyPrint requires GTK libraries. Install using:
-```bash
-pip install weasyprint
-# May need additional system dependencies - see WeasyPrint docs
-```
+**PDF Export Issues**
+PDF generation uses fpdf2 with bundled DejaVu fonts to avoid system dependencies.
+If PDF export fails, confirm `backend/app/assets/fonts/DejaVuSans.ttf` and
+`backend/app/assets/fonts/DejaVuSans-Bold.ttf` are present.
 
 ---
 
@@ -422,7 +434,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Google Gemini](https://deepmind.google/technologies/gemini/) for the AI engine
 - [FastAPI](https://fastapi.tiangolo.com/) for the excellent Python web framework
 - [Material UI](https://mui.com/) for the beautiful React components
-- [WeasyPrint](https://weasyprint.org/) for PDF generation
+- [fpdf2](https://pyfpdf.github.io/fpdf2/) for PDF generation
 
 ---
 

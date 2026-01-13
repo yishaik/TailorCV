@@ -88,18 +88,20 @@ Return a JSON object:
 
 class CVGenerator:
     """Generates tailored CVs from mapping results."""
-    
+
     def __init__(
         self,
         requirements: JobRequirements,
         cv_facts: CVFacts,
         mapping: MappingResult,
-        strictness: str = "moderate"
+        strictness: str = "moderate",
+        user_instructions: Optional[str] = None
     ):
         self.requirements = requirements
         self.cv_facts = cv_facts
         self.mapping = mapping
         self.config = STRICTNESS_CONFIGS.get(strictness, STRICTNESS_CONFIGS["moderate"])
+        self.user_instructions = (user_instructions or "").strip()
         self.changes_log: list[ChangeLogEntry] = []
         self.borderline_items: list[BorderlineItem] = []
         self.client = get_llm_client()
@@ -218,6 +220,7 @@ class CVGenerator:
             key_achievements="; ".join(achievements) if achievements else "Various accomplishments",
             keywords=", ".join(keywords)
         )
+        prompt = self._apply_user_instructions(prompt)
         
         summary = await self.client.generate_text(prompt)
         summary = summary.strip().strip('"')
@@ -342,6 +345,7 @@ class CVGenerator:
             keywords=", ".join(keywords[:10]),
             responsibilities="\n".join(f"- {r}" for r in responsibilities[:3])
         )
+        prompt = self._apply_user_instructions(prompt)
         
         try:
             response = await self.client.generate_text(prompt)
@@ -494,12 +498,21 @@ class CVGenerator:
         
         return relevant_projects[:5]
 
+    def _apply_user_instructions(self, prompt: str) -> str:
+        if not self.user_instructions:
+            return prompt
+        return (
+            f"{prompt}\n\nUSER INSTRUCTIONS (follow if they do not conflict with the rules):\n"
+            f"{self.user_instructions}\n"
+        )
+
 
 async def generate_tailored_cv(
     requirements: JobRequirements,
     cv_facts: CVFacts,
     mapping: MappingResult,
-    strictness: str = "moderate"
+    strictness: str = "moderate",
+    user_instructions: Optional[str] = None
 ) -> tuple[TailoredCV, list[ChangeLogEntry], list[BorderlineItem]]:
     """
     Generate a tailored CV from mapping results.
@@ -513,5 +526,5 @@ async def generate_tailored_cv(
     Returns:
         Tuple of (tailored CV, changes log, borderline items)
     """
-    generator = CVGenerator(requirements, cv_facts, mapping, strictness)
+    generator = CVGenerator(requirements, cv_facts, mapping, strictness, user_instructions)
     return await generator.generate()

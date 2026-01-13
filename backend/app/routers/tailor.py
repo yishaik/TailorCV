@@ -68,7 +68,8 @@ async def tailor_cv(request: TailorRequest):
             requirements,
             cv_facts,
             mapping,
-            request.options.strictness_level
+            request.options.strictness_level,
+            request.options.user_instructions
         )
         
         # Step 5: Run quality checks
@@ -100,7 +101,8 @@ async def tailor_cv(request: TailorRequest):
                 requirements,
                 cv_facts,
                 mapping,
-                request.options.strictness_level
+                request.options.strictness_level,
+                request.options.user_instructions
             )
         
         # Build mapping summary
@@ -142,7 +144,8 @@ async def tailor_cv_with_upload(
     cv_file: UploadFile = File(...),
     generate_cover_letter: bool = Form(True),
     strictness_level: str = Form("moderate"),
-    output_format: str = Form("markdown")
+    output_format: str = Form("markdown"),
+    user_instructions: Optional[str] = Form(None)
 ):
     """
     Tailor a CV with file upload support.
@@ -183,7 +186,8 @@ async def tailor_cv_with_upload(
         options=TailorOptions(
             generate_cover_letter=generate_cover_letter,
             strictness_level=strictness_level,
-            output_format=output_format
+            output_format=output_format,
+            user_instructions=user_instructions
         )
     )
     

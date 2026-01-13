@@ -261,30 +261,52 @@ def generate_docx(cv: TailoredCV, cover_letter: Optional[CoverLetter] = None) ->
 
 def generate_pdf(cv: TailoredCV, cover_letter: Optional[CoverLetter] = None) -> bytes:
     """
-    Generate PDF format CV using WeasyPrint.
-    
+    Generate PDF format CV using a bundled TrueType font (Vercel-safe).
+
     Args:
         cv: Tailored CV data
         cover_letter: Optional cover letter
-    
+
     Returns:
         PDF file content as bytes
     """
-    from weasyprint import HTML, CSS
-    
-    # Generate HTML content
-    html_content = _generate_html(cv, cover_letter)
-    
-    # Convert to PDF
-    html = HTML(string=html_content)
-    css = CSS(string=_get_pdf_styles())
-    
-    return html.write_pdf(stylesheets=[css])
+    from fpdf import FPDF
+    from pathlib import Path
 
+    fonts_dir = Path(__file__).resolve().parents[1] / "assets" / "fonts"
+    regular_font = fonts_dir / "DejaVuSans.ttf"
+    bold_font = fonts_dir / "DejaVuSans-Bold.ttf"
+    if not regular_font.exists() or not bold_font.exists():
+        raise FileNotFoundError("PDF fonts are missing from backend/app/assets/fonts")
 
-def _generate_html(cv: TailoredCV, cover_letter: Optional[CoverLetter] = None) -> str:
-    """Generate HTML for PDF conversion."""
-    
+    pdf = FPDF(format="A4")
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.add_font("DejaVu", "", str(regular_font), uni=True)
+    pdf.add_font("DejaVu", "B", str(bold_font), uni=True)
+
+    def add_centered(text: str, size: int, style: str = "") -> None:
+        pdf.set_font("DejaVu", style, size)
+        pdf.cell(0, 8, text, ln=True, align="C")
+
+    def add_section(title: str) -> None:
+        pdf.ln(2)
+        pdf.set_font("DejaVu", "B", 12)
+        pdf.cell(0, 7, title, ln=True)
+
+    def add_paragraph(text: str) -> None:
+        pdf.set_font("DejaVu", "", 10)
+        pdf.multi_cell(0, 5, text)
+
+    def add_bullets(items: list[str]) -> None:
+        pdf.set_font("DejaVu", "", 10)
+        for item in items:
+            pdf.multi_cell(0, 5, f"- {item}")
+
+    # Header
+    add_centered(cv.header.name, 18, "B")
+    add_centered(cv.header.title, 12)
+
     contact_parts = []
     if cv.header.contact.get("email"):
         contact_parts.append(cv.header.contact["email"])
@@ -292,163 +314,75 @@ def _generate_html(cv: TailoredCV, cover_letter: Optional[CoverLetter] = None) -
         contact_parts.append(cv.header.contact["phone"])
     if cv.header.contact.get("location"):
         contact_parts.append(cv.header.contact["location"])
-    
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>{cv.header.name} - CV</title>
-    </head>
-    <body>
-        <header>
-            <h1>{cv.header.name}</h1>
-            <p class="title">{cv.header.title}</p>
-            <p class="contact">{' | '.join(contact_parts)}</p>
-        </header>
-        
-        <section class="summary">
-            <h2>Summary</h2>
-            <p>{cv.summary}</p>
-        </section>
-    """
-    
+    if contact_parts:
+        pdf.set_font("DejaVu", "", 9)
+        pdf.multi_cell(0, 5, " | ".join(contact_parts), align="C")
+
+    # Summary
+    add_section("Summary")
+    add_paragraph(cv.summary)
+
     # Experience
     if cv.experience:
-        html += "<section class='experience'><h2>Experience</h2>"
+        add_section("Experience")
         for exp in cv.experience:
-            html += f"""
-            <div class="job">
-                <h3>{exp.title}</h3>
-                <p class="company">{exp.company} | {exp.dates}</p>
-                <ul>
-            """
-            for bullet in exp.bullets:
-                html += f"<li>{bullet.text}</li>"
-            html += "</ul></div>"
-        html += "</section>"
-    
+            pdf.set_font("DejaVu", "B", 11)
+            pdf.cell(0, 6, exp.title, ln=True)
+            pdf.set_font("DejaVu", "", 10)
+            location_str = f" | {exp.location}" if exp.location else ""
+            pdf.cell(0, 5, f"{exp.company} | {exp.dates}{location_str}", ln=True)
+            add_bullets([bullet.text for bullet in exp.bullets])
+            pdf.ln(1)
+
     # Skills
-    if cv.skills.primary or cv.skills.secondary:
-        html += "<section class='skills'><h2>Skills</h2>"
+    if cv.skills.primary or cv.skills.secondary or cv.skills.tools:
+        add_section("Skills")
         if cv.skills.primary:
-            html += f"<p><strong>Core:</strong> {', '.join(cv.skills.primary)}</p>"
+            add_paragraph(f"Core: {', '.join(cv.skills.primary)}")
         if cv.skills.secondary:
-            html += f"<p><strong>Additional:</strong> {', '.join(cv.skills.secondary)}</p>"
+            add_paragraph(f"Additional: {', '.join(cv.skills.secondary)}")
         if cv.skills.tools:
-            html += f"<p><strong>Tools:</strong> {', '.join(cv.skills.tools)}</p>"
-        html += "</section>"
-    
+            add_paragraph(f"Tools & Technologies: {', '.join(cv.skills.tools)}")
+
     # Education
     if cv.education:
-        html += "<section class='education'><h2>Education</h2>"
+        add_section("Education")
         for edu in cv.education:
-            html += f"<p><strong>{edu.degree} in {edu.field}</strong>"
-            if edu.year:
-                html += f" ({edu.year})"
-            html += f"<br>{edu.institution}</p>"
-        html += "</section>"
-    
+            pdf.set_font("DejaVu", "B", 10)
+            year_str = f" ({edu.year})" if edu.year else ""
+            pdf.cell(0, 5, f"{edu.degree} in {edu.field}{year_str}", ln=True)
+            add_paragraph(edu.institution)
+            add_bullets(edu.highlights)
+            pdf.ln(1)
+
     # Certifications
     if cv.certifications:
-        html += "<section class='certifications'><h2>Certifications</h2><ul>"
+        add_section("Certifications")
         for cert in cv.certifications:
-            html += f"<li><strong>{cert.name}</strong> - {cert.issuer}"
-            if cert.date:
-                html += f" ({cert.date})"
-            html += "</li>"
-        html += "</ul></section>"
-    
-    # Cover letter
+            date_str = f" ({cert.date})" if cert.date else ""
+            add_paragraph(f"{cert.name} - {cert.issuer}{date_str}")
+
+    # Projects
+    if cv.projects:
+        add_section("Projects")
+        for proj in cv.projects:
+            pdf.set_font("DejaVu", "B", 10)
+            pdf.cell(0, 5, proj.name, ln=True)
+            add_paragraph(proj.description)
+            if proj.technologies:
+                add_paragraph(f"Technologies: {', '.join(proj.technologies)}")
+            pdf.ln(1)
+
+    # Cover letter on new page
     if cover_letter:
-        html += f"""
-        <div class="page-break"></div>
-        <section class="cover-letter">
-            <h2>Cover Letter</h2>
-            <p>{cover_letter.hook}</p>
-            <p>{cover_letter.value_proposition}</p>
-            <p>{cover_letter.fit_narrative}</p>
-            <p>{cover_letter.closing}</p>
-        </section>
-        """
-    
-    html += "</body></html>"
-    return html
+        pdf.add_page()
+        add_section("Cover Letter")
+        add_paragraph(cover_letter.hook)
+        add_paragraph(cover_letter.value_proposition)
+        add_paragraph(cover_letter.fit_narrative)
+        add_paragraph(cover_letter.closing)
 
-
-def _get_pdf_styles() -> str:
-    """Get CSS styles for PDF generation."""
-    return """
-    @page {
-        size: A4;
-        margin: 1.5cm;
-    }
-    
-    body {
-        font-family: 'Helvetica', 'Arial', sans-serif;
-        font-size: 10pt;
-        line-height: 1.4;
-        color: #333;
-    }
-    
-    header {
-        text-align: center;
-        margin-bottom: 20px;
-        border-bottom: 2px solid #2c3e50;
-        padding-bottom: 10px;
-    }
-    
-    h1 {
-        font-size: 24pt;
-        margin: 0;
-        color: #2c3e50;
-    }
-    
-    .title {
-        font-size: 12pt;
-        color: #7f8c8d;
-        margin: 5px 0;
-    }
-    
-    .contact {
-        font-size: 9pt;
-        color: #95a5a6;
-    }
-    
-    h2 {
-        font-size: 14pt;
-        color: #2c3e50;
-        border-bottom: 1px solid #bdc3c7;
-        padding-bottom: 3px;
-        margin-top: 15px;
-    }
-    
-    h3 {
-        font-size: 11pt;
-        margin: 10px 0 3px 0;
-    }
-    
-    .company {
-        font-style: italic;
-        color: #7f8c8d;
-        margin: 0 0 5px 0;
-    }
-    
-    ul {
-        margin: 5px 0;
-        padding-left: 20px;
-    }
-    
-    li {
-        margin-bottom: 3px;
-    }
-    
-    .page-break {
-        page-break-before: always;
-    }
-    
-    .cover-letter p {
-        margin-bottom: 12px;
-        text-align: justify;
-    }
-    """
+    pdf_bytes = pdf.output(dest="S")
+    if isinstance(pdf_bytes, str):
+        pdf_bytes = pdf_bytes.encode("latin-1")
+    return pdf_bytes
