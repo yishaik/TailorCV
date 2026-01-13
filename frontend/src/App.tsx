@@ -19,7 +19,6 @@ import {
   IconButton,
   Dialog,
   DialogContent,
-  LinearProgress,
 } from '@mui/material';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -34,7 +33,7 @@ import {
   ResultsDisplay,
   ExportOptions,
 } from './components';
-import { tailorCV, tailorCVWithFile, tailorCVWithProgress, isApiError, type ProgressEvent } from './services/api';
+import { tailorCVWithFile, tailorCVWithProgress, isApiError, type ProgressEvent } from './services/api';
 import type { TailorResult, StrictnessLevel, OutputFormat } from './types';
 
 // Dark theme with purple accent
@@ -629,6 +628,14 @@ function App() {
                   },
                 }}
               />
+              {progressMessage && (
+                <Typography
+                  variant="caption"
+                  sx={{ color: 'text.secondary', mt: 1, display: 'block' }}
+                >
+                  {progressMessage}
+                </Typography>
+              )}
               <Typography
                 variant="caption"
                 sx={{ color: 'text.secondary', mt: 1, display: 'block' }}
