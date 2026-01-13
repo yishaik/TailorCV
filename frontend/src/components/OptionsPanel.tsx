@@ -22,8 +22,8 @@ interface OptionsPanelProps {
     onStrictnessChange: (value: StrictnessLevel) => void;
     outputFormat: OutputFormat;
     onOutputFormatChange: (value: OutputFormat) => void;
-    userNotes: string;
-    onUserNotesChange: (value: string) => void;
+    userInstructions: string;
+    onUserInstructionsChange: (value: string) => void;
     disabled?: boolean;
 }
 
@@ -40,8 +40,8 @@ export function OptionsPanel({
     onStrictnessChange,
     outputFormat,
     onOutputFormatChange,
-    userNotes,
-    onUserNotesChange,
+    userInstructions,
+    onUserInstructionsChange,
     disabled = false,
 }: OptionsPanelProps) {
     return (
@@ -164,26 +164,27 @@ export function OptionsPanel({
                 </ToggleButtonGroup>
             </Box>
 
-            {/* User Notes */}
+            {/* User Instructions */}
             <Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     <NotesIcon sx={{ color: 'primary.main', mr: 1, fontSize: 20 }} />
                     <Typography sx={{ color: '#fff', fontWeight: 500 }}>
-                        Additional Notes (Optional)
+                        Notes for the Model (Optional)
                     </Typography>
                 </Box>
                 <TextField
-                    multiline
-                    rows={4}
-                    value={userNotes}
-                    onChange={(e) => onUserNotesChange(e.target.value)}
-                    placeholder="Add any specific instructions, preferences, or context you'd like the AI to consider when tailoring your CV and cover letter. For example:&#10;&#10;- Emphasize my leadership experience&#10;- Highlight my Python skills over Java&#10;- I'm transitioning from marketing to product management"
-                    disabled={disabled}
                     fullWidth
+                    multiline
+                    minRows={3}
+                    value={userInstructions}
+                    onChange={(e) => onUserInstructionsChange(e.target.value)}
+                    disabled={disabled}
+                    placeholder="Add preferences for tone, emphasis, or formatting."
+                    helperText="Example: Emphasize leadership, keep tone formal, highlight Python over Java."
                     sx={{
                         '& .MuiOutlinedInput-root': {
-                            color: '#fff',
                             backgroundColor: 'rgba(0,0,0,0.2)',
+                            color: '#fff',
                             '& fieldset': {
                                 borderColor: 'rgba(255,255,255,0.2)',
                             },
@@ -194,15 +195,11 @@ export function OptionsPanel({
                                 borderColor: 'primary.main',
                             },
                         },
-                        '& .MuiInputBase-input::placeholder': {
-                            color: 'rgba(255,255,255,0.5)',
-                            opacity: 1,
+                        '& .MuiFormHelperText-root': {
+                            color: 'text.secondary',
                         },
                     }}
                 />
-                <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
-                    These notes will guide the AI when rewriting your CV summary and cover letter.
-                </Typography>
             </Box>
         </Paper>
     );

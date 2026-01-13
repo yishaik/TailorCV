@@ -22,7 +22,7 @@ export async function tailorCVWithFile(
         generateCoverLetter?: boolean;
         strictnessLevel?: string;
         outputFormat?: string;
-        userNotes?: string;
+        userInstructions?: string;
     } = {}
 ): Promise<TailorResult> {
     const formData = new FormData();
@@ -31,8 +31,8 @@ export async function tailorCVWithFile(
     formData.append('generate_cover_letter', String(options.generateCoverLetter ?? true));
     formData.append('strictness_level', options.strictnessLevel ?? 'moderate');
     formData.append('output_format', options.outputFormat ?? 'markdown');
-    if (options.userNotes) {
-        formData.append('user_notes', options.userNotes);
+    if (options.userInstructions) {
+        formData.append('user_instructions', options.userInstructions);
     }
 
     const response = await api.post<TailorResult>('/tailor/upload', formData, {

@@ -70,7 +70,7 @@ async def tailor_cv(request: TailorRequest):
             cv_facts,
             mapping,
             request.options.strictness_level,
-            request.options.user_notes
+            request.options.user_instructions
         )
         
         # Step 5: Run quality checks
@@ -103,7 +103,7 @@ async def tailor_cv(request: TailorRequest):
                 cv_facts,
                 mapping,
                 request.options.strictness_level,
-                request.options.user_notes
+                request.options.user_instructions
             )
         
         # Build mapping summary
@@ -171,7 +171,7 @@ async def tailor_cv_stream(request: TailorRequest):
                 cv_facts,
                 mapping,
                 request.options.strictness_level,
-                request.options.user_notes
+                request.options.user_instructions
             )
 
             # Step 5: Run quality checks
@@ -197,7 +197,7 @@ async def tailor_cv_stream(request: TailorRequest):
                     cv_facts,
                     mapping,
                     request.options.strictness_level,
-                    request.options.user_notes
+                    request.options.user_instructions
                 )
             else:
                 yield f"data: {json.dumps({'step': 6, 'total': 6, 'message': 'Finalizing...'})}\n\n"
@@ -247,7 +247,7 @@ async def tailor_cv_with_upload(
     generate_cover_letter: bool = Form(True),
     strictness_level: str = Form("moderate"),
     output_format: str = Form("markdown"),
-    user_notes: Optional[str] = Form(None)
+    user_instructions: Optional[str] = Form(None)
 ):
     """
     Tailor a CV with file upload support.
@@ -289,10 +289,10 @@ async def tailor_cv_with_upload(
             generate_cover_letter=generate_cover_letter,
             strictness_level=strictness_level,
             output_format=output_format,
-            user_notes=user_notes
+            user_instructions=user_instructions
         )
     )
-    
+
     return await tailor_cv(request)
 
 

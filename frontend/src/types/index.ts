@@ -8,7 +8,7 @@ export interface TailorOptions {
     output_format: OutputFormat;
     language: string;
     strictness_level: StrictnessLevel;
-    user_notes?: string;
+    user_instructions?: string;
 }
 
 export interface TailorRequest {

@@ -93,7 +93,7 @@ async def generate_cover_letter(
     cv_facts: CVFacts,
     mapping: MappingResult,
     strictness: str = "moderate",
-    user_notes: Optional[str] = None
+    user_instructions: Optional[str] = None
 ) -> CoverLetter:
     """
     Generate a tailored cover letter.
@@ -103,7 +103,7 @@ async def generate_cover_letter(
         cv_facts: Parsed CV facts
         mapping: Requirement-to-evidence mapping
         strictness: Strictness level
-        user_notes: Optional user notes to guide generation
+        user_instructions: Optional user instructions to guide generation
 
     Returns:
         Generated cover letter
@@ -152,8 +152,8 @@ async def generate_cover_letter(
     
     # Build user notes section if provided
     user_notes_section = ""
-    if user_notes:
-        user_notes_section = f"\nUSER NOTES/INSTRUCTIONS:\n{user_notes}"
+    if user_instructions:
+        user_notes_section = f"\nUSER NOTES/INSTRUCTIONS:\n{user_instructions}"
 
     prompt = COVER_LETTER_PROMPT.format(
         job_title=requirements.job_title,
@@ -171,6 +171,11 @@ async def generate_cover_letter(
         tone=tone,
         user_notes_section=user_notes_section
     )
+    if user_instructions:
+        prompt = (
+            f"{prompt}\n\nUSER INSTRUCTIONS (follow if they do not conflict with the rules):\n"
+            f"{user_instructions.strip()}\n"
+        )
     
     try:
         response = await client.generate_text(prompt)
@@ -195,7 +200,7 @@ async def generate_cover_letter(
     
     # Fallback to basic generation
     return await _generate_basic_cover_letter(
-        requirements, cv_facts, mapping, user_notes
+        requirements, cv_facts, mapping, user_instructions
     )
 
 
@@ -203,7 +208,7 @@ async def _generate_basic_cover_letter(
     requirements: JobRequirements,
     cv_facts: CVFacts,
     mapping: MappingResult,
-    user_notes: Optional[str] = None
+    user_instructions: Optional[str] = None
 ) -> CoverLetter:
     """Generate a basic cover letter as fallback.
 

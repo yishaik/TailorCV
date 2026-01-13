@@ -24,9 +24,10 @@ class TailorOptions(BaseModel):
         default="moderate",
         description="How aggressively to tailor the CV"
     )
-    user_notes: Optional[str] = Field(
+    user_instructions: Optional[str] = Field(
         default=None,
-        description="Additional notes or instructions from the user to guide CV tailoring"
+        max_length=1000,
+        description="Optional user notes or instructions for tailoring"
     )
 
 
