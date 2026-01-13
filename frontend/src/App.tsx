@@ -19,7 +19,6 @@ import {
   IconButton,
   Dialog,
   DialogContent,
-  LinearProgress,
 } from '@mui/material';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
