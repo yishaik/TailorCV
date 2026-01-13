@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     default_language: str = "en"
     
     # LLM settings
-    gemini_model: str = "gemini-1.5-flash"
+    gemini_model: str = "gemini-1.5-flash-latest"
     max_retries: int = 3
     
     class Config:
