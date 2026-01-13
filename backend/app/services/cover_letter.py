@@ -66,6 +66,16 @@ RULES:
 4. Match the company's tone ({tone})
 5. If there are gaps, position them honestly with a growth mindset
 6. Every claim must be based on the provided facts
+7. If user notes are provided, incorporate their guidance appropriately
+
+CRITICAL ACCURACY RULES - DO NOT VIOLATE:
+- Every achievement and claim must come from the provided candidate profile
+- Do NOT invent accomplishments, metrics, or experiences
+- Do NOT exaggerate years of experience or skill levels
+- Only mention skills that are explicitly listed in the profile
+- Do NOT claim familiarity with technologies not mentioned in the CV
+- Be honest about gaps - do not pretend they don't exist
+{user_notes_section}
 
 OUTPUT FORMAT:
 Return a JSON object:
@@ -82,17 +92,19 @@ async def generate_cover_letter(
     requirements: JobRequirements,
     cv_facts: CVFacts,
     mapping: MappingResult,
-    strictness: str = "moderate"
+    strictness: str = "moderate",
+    user_notes: Optional[str] = None
 ) -> CoverLetter:
     """
     Generate a tailored cover letter.
-    
+
     Args:
         requirements: Parsed job requirements
         cv_facts: Parsed CV facts
         mapping: Requirement-to-evidence mapping
         strictness: Strictness level
-    
+        user_notes: Optional user notes to guide generation
+
     Returns:
         Generated cover letter
     """
@@ -138,6 +150,11 @@ async def generate_cover_letter(
     if mapping.overall_match.critical_gaps:
         gaps_text = "; ".join(mapping.overall_match.critical_gaps[:2])
     
+    # Build user notes section if provided
+    user_notes_section = ""
+    if user_notes:
+        user_notes_section = f"\nUSER NOTES/INSTRUCTIONS:\n{user_notes}"
+
     prompt = COVER_LETTER_PROMPT.format(
         job_title=requirements.job_title,
         company=requirements.company or "the company",
@@ -151,7 +168,8 @@ async def generate_cover_letter(
         match_score=mapping.overall_match.score,
         strongest=", ".join(mapping.overall_match.strongest_matches[:3]) if mapping.overall_match.strongest_matches else "Multiple areas",
         gaps=gaps_text or "No critical gaps",
-        tone=tone
+        tone=tone,
+        user_notes_section=user_notes_section
     )
     
     try:
@@ -177,16 +195,21 @@ async def generate_cover_letter(
     
     # Fallback to basic generation
     return await _generate_basic_cover_letter(
-        requirements, cv_facts, mapping
+        requirements, cv_facts, mapping, user_notes
     )
 
 
 async def _generate_basic_cover_letter(
     requirements: JobRequirements,
     cv_facts: CVFacts,
-    mapping: MappingResult
+    mapping: MappingResult,
+    user_notes: Optional[str] = None
 ) -> CoverLetter:
-    """Generate a basic cover letter as fallback."""
+    """Generate a basic cover letter as fallback.
+
+    Note: This is a template-based fallback when LLM generation fails.
+    User notes have limited effect here since no LLM is used.
+    """
     
     name = cv_facts.personal_info.name
     job_title = requirements.job_title

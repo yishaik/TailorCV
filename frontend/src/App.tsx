@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ThemeProvider,
   createTheme,
@@ -15,11 +15,15 @@ import {
   AppBar,
   Toolbar,
   IconButton,
+  Dialog,
+  DialogContent,
+  LinearProgress,
 } from '@mui/material';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 import {
   JobDescriptionInput,
@@ -28,7 +32,7 @@ import {
   ResultsDisplay,
   ExportOptions,
 } from './components';
-import { tailorCV, tailorCVWithFile, isApiError } from './services/api';
+import { tailorCV, tailorCVWithFile, tailorCVWithProgress, isApiError, type ProgressEvent } from './services/api';
 import type { TailorResult, StrictnessLevel, OutputFormat } from './types';
 
 // Dark theme with purple accent
@@ -101,11 +105,27 @@ function App() {
   const [generateCoverLetter, setGenerateCoverLetter] = useState(true);
   const [strictnessLevel, setStrictnessLevel] = useState<StrictnessLevel>('moderate');
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('markdown');
+  const [userNotes, setUserNotes] = useState('');
 
   // Result state
   const [result, setResult] = useState<TailorResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Progress state - now driven by real backend SSE events
+  const [progressStep, setProgressStep] = useState(0);
+  const [progressMessage, setProgressMessage] = useState('');
+  const [totalSteps, setTotalSteps] = useState(6);
+
+  // Progress steps for display (will be updated by SSE)
+  const progressSteps = [
+    'Analyzing job description...',
+    'Extracting CV facts...',
+    'Mapping requirements to experience...',
+    'Generating tailored CV...',
+    'Running quality checks...',
+    generateCoverLetter ? 'Generating cover letter...' : 'Finalizing...',
+  ];
 
   // Validation
   const isStep1Valid = jobDescription.length >= 50 && (cvFile !== null || cvText.length >= 100);
@@ -131,27 +151,67 @@ function App() {
   const handleTailor = async () => {
     setLoading(true);
     setError(null);
+    setProgressStep(0);
+    setProgressMessage('Starting...');
 
     try {
       let tailorResult: TailorResult;
 
+      // Handle progress updates from SSE
+      const handleProgress = (event: ProgressEvent) => {
+        if (event.step !== undefined) {
+          setProgressStep(event.step);
+        }
+        if (event.message) {
+          setProgressMessage(event.message);
+        }
+        if (event.total !== undefined) {
+          setTotalSteps(event.total);
+        }
+      };
+
       if (cvFile) {
-        tailorResult = await tailorCVWithFile(jobDescription, cvFile, {
-          generateCoverLetter,
-          strictnessLevel,
-          outputFormat,
-        });
+        // File upload doesn't support SSE yet, use regular API with simulated progress
+        const simulateProgress = () => {
+          let step = 0;
+          const messages = progressSteps;
+          const interval = setInterval(() => {
+            if (step < messages.length) {
+              setProgressStep(step + 1);
+              setProgressMessage(messages[step]);
+              step++;
+            }
+          }, 3000);
+          return () => clearInterval(interval);
+        };
+        const stopSimulation = simulateProgress();
+
+        try {
+          tailorResult = await tailorCVWithFile(jobDescription, cvFile, {
+            generateCoverLetter,
+            strictnessLevel,
+            outputFormat,
+            userNotes: userNotes || undefined,
+          });
+        } finally {
+          stopSimulation();
+        }
       } else {
-        tailorResult = await tailorCV({
-          job_description: jobDescription,
-          original_cv: cvText,
-          options: {
-            generate_cover_letter: generateCoverLetter,
-            output_format: outputFormat,
-            language: 'en',
-            strictness_level: strictnessLevel,
+        // Use SSE streaming for real-time progress updates
+        tailorResult = await tailorCVWithProgress(
+          {
+            job_description: jobDescription,
+            original_cv: cvText,
+            options: {
+              generate_cover_letter: generateCoverLetter,
+              output_format: outputFormat,
+              language: 'en',
+              strictness_level: strictnessLevel,
+              user_notes: userNotes || undefined,
+            },
           },
-        });
+          handleProgress
+        );
       }
 
       setResult(tailorResult);
@@ -267,6 +327,8 @@ function App() {
               onStrictnessChange={setStrictnessLevel}
               outputFormat={outputFormat}
               onOutputFormatChange={setOutputFormat}
+              userNotes={userNotes}
+              onUserNotesChange={setUserNotes}
               disabled={loading}
             />
           </Box>
@@ -350,6 +412,113 @@ function App() {
           AI CV Tailor • Never fabricates, only optimizes
         </Typography>
       </Box>
+
+      {/* Progress Dialog */}
+      <Dialog
+        open={loading}
+        PaperProps={{
+          sx: {
+            backgroundColor: 'background.paper',
+            backgroundImage: 'linear-gradient(145deg, #1e1e2e 0%, #2a2a3e 100%)',
+            borderRadius: 3,
+            border: '1px solid rgba(255,255,255,0.1)',
+            minWidth: 400,
+            p: 2,
+          },
+        }}
+      >
+        <DialogContent>
+          <Box sx={{ textAlign: 'center', py: 2 }}>
+            <AutoFixHighIcon
+              sx={{
+                fontSize: 48,
+                color: 'primary.main',
+                mb: 2,
+                animation: 'pulse 2s infinite',
+                '@keyframes pulse': {
+                  '0%': { opacity: 1, transform: 'scale(1)' },
+                  '50%': { opacity: 0.7, transform: 'scale(1.1)' },
+                  '100%': { opacity: 1, transform: 'scale(1)' },
+                },
+              }}
+            />
+            <Typography variant="h6" sx={{ color: '#fff', mb: 3 }}>
+              Tailoring Your CV
+            </Typography>
+
+            {/* Progress Steps */}
+            <Box sx={{ mb: 3 }}>
+              {progressSteps.map((step, index) => (
+                <Box
+                  key={index}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'flex-start',
+                    py: 0.75,
+                    px: 2,
+                    opacity: index + 1 <= progressStep ? 1 : 0.4,
+                    transition: 'opacity 0.3s ease',
+                  }}
+                >
+                  {index + 1 < progressStep ? (
+                    <CheckCircleIcon
+                      sx={{ color: 'success.main', mr: 1.5, fontSize: 20 }}
+                    />
+                  ) : index + 1 === progressStep ? (
+                    <CircularProgress
+                      size={18}
+                      sx={{ color: 'primary.main', mr: 1.5 }}
+                    />
+                  ) : (
+                    <Box
+                      sx={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: '50%',
+                        border: '2px solid rgba(255,255,255,0.3)',
+                        mr: 1.5,
+                      }}
+                    />
+                  )}
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: index + 1 <= progressStep ? '#fff' : 'text.secondary',
+                      fontWeight: index + 1 === progressStep ? 600 : 400,
+                    }}
+                  >
+                    {step}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+
+            {/* Overall Progress Bar */}
+            <Box sx={{ px: 2 }}>
+              <LinearProgress
+                variant="determinate"
+                value={(progressStep / totalSteps) * 100}
+                sx={{
+                  height: 6,
+                  borderRadius: 3,
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                  '& .MuiLinearProgress-bar': {
+                    borderRadius: 3,
+                    background: 'linear-gradient(45deg, #7c4dff 30%, #b47cff 90%)',
+                  },
+                }}
+              />
+              <Typography
+                variant="caption"
+                sx={{ color: 'text.secondary', mt: 1, display: 'block' }}
+              >
+                This may take 30-60 seconds...
+              </Typography>
+            </Box>
+          </Box>
+        </DialogContent>
+      </Dialog>
     </ThemeProvider>
   );
 }

@@ -3,7 +3,8 @@ API endpoints for CV tailoring.
 """
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Response
 from fastapi.responses import StreamingResponse
-from typing import Optional
+from typing import Optional, AsyncGenerator
+import asyncio
 import io
 import json
 import logging
@@ -68,7 +69,8 @@ async def tailor_cv(request: TailorRequest):
             requirements,
             cv_facts,
             mapping,
-            request.options.strictness_level
+            request.options.strictness_level,
+            request.options.user_notes
         )
         
         # Step 5: Run quality checks
@@ -100,7 +102,8 @@ async def tailor_cv(request: TailorRequest):
                 requirements,
                 cv_facts,
                 mapping,
-                request.options.strictness_level
+                request.options.strictness_level,
+                request.options.user_notes
             )
         
         # Build mapping summary
@@ -136,13 +139,115 @@ async def tailor_cv(request: TailorRequest):
         )
 
 
+@router.post("/tailor/stream")
+async def tailor_cv_stream(request: TailorRequest):
+    """
+    Streaming endpoint for CV tailoring with real-time progress updates.
+
+    Returns Server-Sent Events (SSE) with progress updates and final result.
+    """
+    async def generate_events() -> AsyncGenerator[str, None]:
+        try:
+            # Step 1: Extract job requirements
+            yield f"data: {json.dumps({'step': 1, 'total': 6, 'message': 'Analyzing job description...'})}\n\n"
+            requirements = await extract_job_requirements(request.job_description)
+
+            # Step 2: Extract CV facts
+            yield f"data: {json.dumps({'step': 2, 'total': 6, 'message': 'Extracting CV facts...'})}\n\n"
+            cv_facts = await extract_cv_facts(request.original_cv)
+
+            # Step 3: Map requirements to evidence
+            yield f"data: {json.dumps({'step': 3, 'total': 6, 'message': 'Mapping requirements to experience...'})}\n\n"
+            mapping = await map_requirements_to_evidence(
+                requirements,
+                cv_facts,
+                request.options.strictness_level
+            )
+
+            # Step 4: Generate tailored CV
+            yield f"data: {json.dumps({'step': 4, 'total': 6, 'message': 'Generating tailored CV...'})}\n\n"
+            tailored_cv, changes_log, borderline_items = await generate_tailored_cv(
+                requirements,
+                cv_facts,
+                mapping,
+                request.options.strictness_level,
+                request.options.user_notes
+            )
+
+            # Step 5: Run quality checks
+            yield f"data: {json.dumps({'step': 5, 'total': 6, 'message': 'Running quality checks...'})}\n\n"
+            is_valid, errors, warnings, match_score = run_quality_checks(
+                cv_facts,
+                tailored_cv,
+                mapping,
+                changes_log,
+                borderline_items
+            )
+
+            if not is_valid:
+                yield f"data: {json.dumps({'error': True, 'message': 'Quality checks detected potential fabrication', 'details': errors})}\n\n"
+                return
+
+            # Step 6: Generate cover letter if requested
+            cover_letter = None
+            if request.options.generate_cover_letter:
+                yield f"data: {json.dumps({'step': 6, 'total': 6, 'message': 'Generating cover letter...'})}\n\n"
+                cover_letter = await generate_cover_letter(
+                    requirements,
+                    cv_facts,
+                    mapping,
+                    request.options.strictness_level,
+                    request.options.user_notes
+                )
+            else:
+                yield f"data: {json.dumps({'step': 6, 'total': 6, 'message': 'Finalizing...'})}\n\n"
+
+            # Build mapping summary
+            mapping_summary = {
+                "overall_score": mapping.overall_match.score,
+                "must_have_coverage": mapping.overall_match.must_have_coverage,
+                "nice_to_have_coverage": mapping.overall_match.nice_to_have_coverage,
+                "strongest_matches": mapping.overall_match.strongest_matches,
+                "critical_gaps": mapping.overall_match.critical_gaps,
+                "keywords_present": mapping.keyword_coverage.present_in_cv,
+                "keywords_missing": mapping.keyword_coverage.genuinely_missing
+            }
+
+            result = TailorResult(
+                tailored_cv=tailored_cv,
+                cover_letter=cover_letter,
+                changes_log=changes_log,
+                borderline_items=borderline_items,
+                match_score=match_score,
+                mapping_summary=mapping_summary
+            )
+
+            # Send final result
+            yield f"data: {json.dumps({'complete': True, 'result': result.model_dump()})}\n\n"
+
+        except Exception as e:
+            logger.exception("Failed to tailor CV (streaming)")
+            yield f"data: {json.dumps({'error': True, 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        generate_events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
+
+
 @router.post("/tailor/upload")
 async def tailor_cv_with_upload(
     job_description: str = Form(...),
     cv_file: UploadFile = File(...),
     generate_cover_letter: bool = Form(True),
     strictness_level: str = Form("moderate"),
-    output_format: str = Form("markdown")
+    output_format: str = Form("markdown"),
+    user_notes: Optional[str] = Form(None)
 ):
     """
     Tailor a CV with file upload support.
@@ -183,7 +288,8 @@ async def tailor_cv_with_upload(
         options=TailorOptions(
             generate_cover_letter=generate_cover_letter,
             strictness_level=strictness_level,
-            output_format=output_format
+            output_format=output_format,
+            user_notes=user_notes
         )
     )
     

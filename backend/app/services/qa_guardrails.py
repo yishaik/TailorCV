@@ -213,27 +213,37 @@ def detect_exaggeration(changes_log: list[ChangeLogEntry]) -> list[BorderlineIte
     
     for change in changes_log:
         if change.change_type == "rewrite" and change.original:
-            # Check for scope escalation
-            scope_words = {
-                'assisted': 'led',
-                'helped': 'managed',
-                'participated': 'drove',
-                'contributed': 'owned',
-                'supported': 'executed'
+            # Check for scope escalation - expanded list of weak -> strong word mappings
+            scope_escalations = {
+                'assisted': ['led', 'managed', 'directed', 'headed', 'spearheaded', 'orchestrated'],
+                'helped': ['managed', 'led', 'owned', 'drove', 'directed', 'oversaw'],
+                'participated': ['drove', 'led', 'spearheaded', 'championed', 'pioneered'],
+                'contributed': ['owned', 'led', 'managed', 'architected', 'designed'],
+                'supported': ['executed', 'led', 'managed', 'owned', 'drove'],
+                'worked on': ['led', 'managed', 'architected', 'designed', 'built'],
+                'involved in': ['led', 'owned', 'drove', 'spearheaded'],
+                'part of': ['led', 'drove', 'managed', 'owned'],
+                'collaborated': ['led', 'directed', 'managed', 'orchestrated'],
+                'member of': ['led', 'headed', 'managed'],
+                'junior': ['senior', 'lead', 'principal', 'staff'],
+                'intern': ['engineer', 'developer', 'analyst'],
             }
-            
+
             original_lower = change.original.lower()
             new_lower = change.new.lower()
-            
-            for weak, strong in scope_words.items():
-                if weak in original_lower and strong in new_lower:
-                    borderline.append(BorderlineItem(
-                        content=change.new,
-                        category="reframed_significantly",
-                        original_evidence=change.original,
-                        risk_level="medium",
-                        user_prompt=f"Original used '{weak}', now uses '{strong}'. Is this accurate?"
-                    ))
+
+            for weak, strong_words in scope_escalations.items():
+                if weak in original_lower:
+                    for strong in strong_words:
+                        if strong in new_lower:
+                            borderline.append(BorderlineItem(
+                                content=change.new,
+                                category="reframed_significantly",
+                                original_evidence=change.original,
+                                risk_level="medium",
+                                user_prompt=f"Scope escalation detected: Original used '{weak}', now uses '{strong}'. Please verify this accurately reflects your role."
+                            ))
+                            break
                     break
     
     return borderline

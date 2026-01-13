@@ -22,6 +22,7 @@ export async function tailorCVWithFile(
         generateCoverLetter?: boolean;
         strictnessLevel?: string;
         outputFormat?: string;
+        userNotes?: string;
     } = {}
 ): Promise<TailorResult> {
     const formData = new FormData();
@@ -30,6 +31,9 @@ export async function tailorCVWithFile(
     formData.append('generate_cover_letter', String(options.generateCoverLetter ?? true));
     formData.append('strictness_level', options.strictnessLevel ?? 'moderate');
     formData.append('output_format', options.outputFormat ?? 'markdown');
+    if (options.userNotes) {
+        formData.append('user_notes', options.userNotes);
+    }
 
     const response = await api.post<TailorResult>('/tailor/upload', formData, {
         headers: {
@@ -76,4 +80,78 @@ export function isApiError(error: unknown): error is { response: { data: ApiErro
         'response' in error &&
         typeof (error as any).response?.data?.error === 'string'
     );
+}
+
+export interface ProgressEvent {
+    step?: number;
+    total?: number;
+    message?: string;
+    complete?: boolean;
+    result?: TailorResult;
+    error?: boolean;
+    details?: string[];
+}
+
+export async function tailorCVWithProgress(
+    request: TailorRequest,
+    onProgress: (event: ProgressEvent) => void
+): Promise<TailorResult> {
+    const response = await fetch(`${API_BASE_URL}/tailor/stream`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+        throw new Error('No response body');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalResult: TailorResult | null = null;
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+            if (line.startsWith('data: ')) {
+                try {
+                    const data = JSON.parse(line.slice(6)) as ProgressEvent;
+                    onProgress(data);
+
+                    if (data.error) {
+                        throw new Error(data.message || 'Unknown error');
+                    }
+
+                    if (data.complete && data.result) {
+                        finalResult = data.result;
+                    }
+                } catch (e) {
+                    if (e instanceof SyntaxError) {
+                        console.warn('Failed to parse SSE data:', line);
+                    } else {
+                        throw e;
+                    }
+                }
+            }
+        }
+    }
+
+    if (!finalResult) {
+        throw new Error('No result received from server');
+    }
+
+    return finalResult;
 }

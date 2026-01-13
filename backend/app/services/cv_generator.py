@@ -42,13 +42,22 @@ CANDIDATE'S EXPERIENCE:
 - Current/recent title: {current_title}
 - Top skills: {top_skills}
 - Key achievements: {key_achievements}
-
+{user_notes_section}
 RULES:
 1. Maximum 3-4 sentences
 2. Front-load with strongest job-relevant qualifications
 3. Include 2-3 high-priority keywords naturally: {keywords}
 4. Use quantification ONLY from the provided achievements
 5. Align title descriptor with the job title
+6. If user notes are provided, incorporate their guidance appropriately
+
+CRITICAL ACCURACY RULES - DO NOT VIOLATE:
+- Every claim must be traceable to the provided CV facts above
+- Do NOT invent achievements, metrics, skills, or experiences
+- Do NOT escalate responsibility (e.g., "helped" cannot become "led")
+- If a metric is not in the provided achievements, do not include any metric
+- Only use technologies/skills explicitly mentioned in the top skills list
+- Do NOT claim expertise in areas not evidenced in the CV
 
 OUTPUT FORMAT:
 Return ONLY the summary text, no additional formatting or explanation.
@@ -66,7 +75,7 @@ JOB-RELEVANT KEYWORDS TO INTEGRATE (if naturally fitting):
 
 JOB RESPONSIBILITIES IT RELATES TO:
 {responsibilities}
-
+{user_notes_section}
 RULES:
 1. Keep ALL facts identical - same numbers, same scope, same outcome
 2. Only change language/framing to match job description style
@@ -74,6 +83,14 @@ RULES:
 4. Maintain or improve specificity - never make it vaguer
 5. Keep bullet concise (max 2 lines)
 6. If the original is already well-written, minimal changes are fine
+7. If user notes are provided, incorporate their guidance where appropriate
+
+CRITICAL ACCURACY RULES - DO NOT VIOLATE:
+- Do NOT add new achievements or responsibilities not in the original
+- Do NOT escalate scope (e.g., "helped" cannot become "led", "assisted" cannot become "managed")
+- Do NOT add metrics if the original doesn't have them
+- Do NOT invent technologies or skills not mentioned
+- The rewritten bullet must be factually equivalent to the original
 
 OUTPUT FORMAT:
 Return a JSON object:
@@ -88,18 +105,20 @@ Return a JSON object:
 
 class CVGenerator:
     """Generates tailored CVs from mapping results."""
-    
+
     def __init__(
         self,
         requirements: JobRequirements,
         cv_facts: CVFacts,
         mapping: MappingResult,
-        strictness: str = "moderate"
+        strictness: str = "moderate",
+        user_notes: Optional[str] = None
     ):
         self.requirements = requirements
         self.cv_facts = cv_facts
         self.mapping = mapping
         self.config = STRICTNESS_CONFIGS.get(strictness, STRICTNESS_CONFIGS["moderate"])
+        self.user_notes = user_notes
         self.changes_log: list[ChangeLogEntry] = []
         self.borderline_items: list[BorderlineItem] = []
         self.client = get_llm_client()
@@ -208,6 +227,11 @@ class CVGenerator:
             f"- {r.description}" for r in self.requirements.must_have[:5]
         ])
         
+        # Build user notes section if provided
+        user_notes_section = ""
+        if self.user_notes:
+            user_notes_section = f"\nUSER NOTES/INSTRUCTIONS:\n{self.user_notes}\n"
+
         prompt = SUMMARY_GENERATION_PROMPT.format(
             job_title=self.requirements.job_title,
             company=self.requirements.company or "the company",
@@ -216,7 +240,8 @@ class CVGenerator:
             current_title=current_title,
             top_skills=", ".join(top_skills),
             key_achievements="; ".join(achievements) if achievements else "Various accomplishments",
-            keywords=", ".join(keywords)
+            keywords=", ".join(keywords),
+            user_notes_section=user_notes_section
         )
         
         summary = await self.client.generate_text(prompt)
@@ -336,11 +361,17 @@ class CVGenerator:
     ) -> TailoredExperienceBullet:
         """Rewrite a bullet to better align with job."""
         import json
-        
+
+        # Build user notes section if provided
+        user_notes_section = ""
+        if self.user_notes:
+            user_notes_section = f"\nUSER NOTES/INSTRUCTIONS:\n{self.user_notes}\n"
+
         prompt = BULLET_REWRITE_PROMPT.format(
             original=original,
             keywords=", ".join(keywords[:10]),
-            responsibilities="\n".join(f"- {r}" for r in responsibilities[:3])
+            responsibilities="\n".join(f"- {r}" for r in responsibilities[:3]),
+            user_notes_section=user_notes_section
         )
         
         try:
@@ -499,19 +530,21 @@ async def generate_tailored_cv(
     requirements: JobRequirements,
     cv_facts: CVFacts,
     mapping: MappingResult,
-    strictness: str = "moderate"
+    strictness: str = "moderate",
+    user_notes: Optional[str] = None
 ) -> tuple[TailoredCV, list[ChangeLogEntry], list[BorderlineItem]]:
     """
     Generate a tailored CV from mapping results.
-    
+
     Args:
         requirements: Parsed job requirements
         cv_facts: Parsed CV facts
         mapping: Requirement-to-evidence mapping
         strictness: Strictness level
-    
+        user_notes: Optional user notes to guide generation
+
     Returns:
         Tuple of (tailored CV, changes log, borderline items)
     """
-    generator = CVGenerator(requirements, cv_facts, mapping, strictness)
+    generator = CVGenerator(requirements, cv_facts, mapping, strictness, user_notes)
     return await generator.generate()

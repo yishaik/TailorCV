@@ -7,6 +7,7 @@ import {
     Typography,
     CircularProgress,
 } from '@mui/material';
+import html2pdf from 'html2pdf.js';
 
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ArticleIcon from '@mui/icons-material/Article';
@@ -23,7 +24,111 @@ export function ExportOptions({ result }: ExportOptionsProps) {
     const [exporting, setExporting] = React.useState<string | null>(null);
     const [copied, setCopied] = React.useState(false);
 
+    const generatePdfHtml = () => {
+        const cv = result.tailored_cv;
+        const coverLetter = result.cover_letter;
+
+        let html = `
+            <div style="font-family: 'Segoe UI', Arial, sans-serif; color: #333; max-width: 800px; margin: 0 auto; padding: 20px;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <h1 style="margin: 0; font-size: 28px; color: #1a1a2e;">${cv.header.name}</h1>
+                    <p style="margin: 5px 0; font-size: 16px; color: #666;">${cv.header.title}</p>
+                    <p style="margin: 5px 0; font-size: 12px; color: #888;">${Object.values(cv.header.contact).join(' | ')}</p>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <h2 style="font-size: 18px; color: #1a1a2e; border-bottom: 2px solid #7c4dff; padding-bottom: 5px;">Summary</h2>
+                    <p style="font-size: 14px; line-height: 1.6;">${cv.summary}</p>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <h2 style="font-size: 18px; color: #1a1a2e; border-bottom: 2px solid #7c4dff; padding-bottom: 5px;">Experience</h2>
+                    ${cv.experience.map(exp => `
+                        <div style="margin-bottom: 15px;">
+                            <h3 style="margin: 0; font-size: 16px; color: #333;">${exp.title}</h3>
+                            <p style="margin: 2px 0; font-size: 14px; color: #666;"><strong>${exp.company}</strong> | ${exp.dates}${exp.location ? ` | ${exp.location}` : ''}</p>
+                            <ul style="margin: 10px 0; padding-left: 20px;">
+                                ${exp.bullets.map(b => `<li style="font-size: 13px; line-height: 1.5; margin-bottom: 5px;">${b.text}</li>`).join('')}
+                            </ul>
+                        </div>
+                    `).join('')}
+                </div>
+
+                ${(cv.skills.primary.length || cv.skills.secondary.length) ? `
+                <div style="margin-bottom: 20px;">
+                    <h2 style="font-size: 18px; color: #1a1a2e; border-bottom: 2px solid #7c4dff; padding-bottom: 5px;">Skills</h2>
+                    ${cv.skills.primary.length ? `<p style="font-size: 13px;"><strong>Core:</strong> ${cv.skills.primary.join(', ')}</p>` : ''}
+                    ${cv.skills.secondary.length ? `<p style="font-size: 13px;"><strong>Additional:</strong> ${cv.skills.secondary.join(', ')}</p>` : ''}
+                    ${cv.skills.tools.length ? `<p style="font-size: 13px;"><strong>Tools:</strong> ${cv.skills.tools.join(', ')}</p>` : ''}
+                </div>
+                ` : ''}
+
+                ${cv.education.length ? `
+                <div style="margin-bottom: 20px;">
+                    <h2 style="font-size: 18px; color: #1a1a2e; border-bottom: 2px solid #7c4dff; padding-bottom: 5px;">Education</h2>
+                    ${cv.education.map(edu => `
+                        <p style="font-size: 14px; margin: 5px 0;">
+                            <strong>${edu.degree} in ${edu.field}</strong>${edu.year ? ` (${edu.year})` : ''}<br/>
+                            <span style="color: #666;">${edu.institution}</span>
+                        </p>
+                    `).join('')}
+                </div>
+                ` : ''}
+
+                ${cv.certifications.length ? `
+                <div style="margin-bottom: 20px;">
+                    <h2 style="font-size: 18px; color: #1a1a2e; border-bottom: 2px solid #7c4dff; padding-bottom: 5px;">Certifications</h2>
+                    ${cv.certifications.map(cert => `
+                        <p style="font-size: 13px; margin: 5px 0;">${cert.name} - ${cert.issuer}${cert.date ? ` (${cert.date})` : ''}</p>
+                    `).join('')}
+                </div>
+                ` : ''}
+
+                ${coverLetter ? `
+                <div style="page-break-before: always; padding-top: 20px;">
+                    <h2 style="font-size: 20px; color: #1a1a2e; text-align: center; margin-bottom: 20px;">Cover Letter</h2>
+                    <p style="font-size: 14px; line-height: 1.8; margin-bottom: 15px;">${coverLetter.hook}</p>
+                    <p style="font-size: 14px; line-height: 1.8; margin-bottom: 15px;">${coverLetter.value_proposition}</p>
+                    <p style="font-size: 14px; line-height: 1.8; margin-bottom: 15px;">${coverLetter.fit_narrative}</p>
+                    <p style="font-size: 14px; line-height: 1.8;">${coverLetter.closing}</p>
+                </div>
+                ` : ''}
+            </div>
+        `;
+        return html;
+    };
+
+    const handlePdfExport = async () => {
+        setExporting('pdf');
+        try {
+            const html = generatePdfHtml();
+            const container = document.createElement('div');
+            container.innerHTML = html;
+            document.body.appendChild(container);
+
+            const opt = {
+                margin: 10,
+                filename: 'tailored_cv.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
+            };
+
+            await html2pdf().set(opt).from(container).save();
+            document.body.removeChild(container);
+        } catch (error) {
+            console.error('PDF export failed:', error);
+            alert('PDF export failed. Please try again.');
+        } finally {
+            setExporting(null);
+        }
+    };
+
     const handleExport = async (format: 'markdown' | 'docx' | 'pdf') => {
+        if (format === 'pdf') {
+            return handlePdfExport();
+        }
+
         setExporting(format);
         try {
             const blob = await exportResult(format, result);

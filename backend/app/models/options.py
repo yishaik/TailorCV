@@ -7,7 +7,7 @@ from typing import Literal, Optional
 
 class TailorOptions(BaseModel):
     """Options for CV tailoring process."""
-    
+
     generate_cover_letter: bool = Field(
         default=True,
         description="Whether to generate a cover letter"
@@ -23,6 +23,10 @@ class TailorOptions(BaseModel):
     strictness_level: Literal["conservative", "moderate", "aggressive"] = Field(
         default="moderate",
         description="How aggressively to tailor the CV"
+    )
+    user_notes: Optional[str] = Field(
+        default=None,
+        description="Additional notes or instructions from the user to guide CV tailoring"
     )
 
 
