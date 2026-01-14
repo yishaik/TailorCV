@@ -238,10 +238,10 @@ curl -X POST "http://localhost:8000/api/tailor" \
   -H "Content-Type: application/json" \
   -d '{
     "job_description": "We are looking for a Senior Software Engineer...",
-    "cv_text": "John Doe\nSoftware Engineer with 5 years experience...",
+    "original_cv": "John Doe\nSoftware Engineer with 5 years experience...",
     "options": {
-      "strictness": "moderate",
-      "include_cover_letter": true,
+      "strictness_level": "moderate",
+      "generate_cover_letter": true,
       "output_format": "markdown"
     }
   }'
@@ -332,27 +332,16 @@ TailorCV/
 ### Running Tests
 
 ```bash
-# Backend tests
-cd backend
-pytest
-
-# Frontend tests
-cd frontend
-npm test
+# There are no automated tests in this repo yet.
+# If you add tests, document the runner here.
 ```
 
 ### Code Formatting
 
 ```bash
-# Backend
-cd backend
-black .
-isort .
-
-# Frontend
+# Frontend linting
 cd frontend
 npm run lint
-npm run format
 ```
 
 ### Building for Production

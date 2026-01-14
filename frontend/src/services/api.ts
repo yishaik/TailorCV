@@ -44,15 +44,15 @@ export async function tailorCVWithFile(
 }
 
 export async function extractJobRequirements(jobDescription: string): Promise<JobRequirements> {
-    const response = await api.post<JobRequirements>('/extract-job', null, {
-        params: { job_description: jobDescription },
+    const response = await api.post<JobRequirements>('/extract-job', {
+        job_description: jobDescription,
     });
     return response.data;
 }
 
 export async function extractCVFacts(cvText: string): Promise<CVFacts> {
-    const response = await api.post<CVFacts>('/extract-cv', null, {
-        params: { cv_text: cvText },
+    const response = await api.post<CVFacts>('/extract-cv', {
+        cv_text: cvText,
     });
     return response.data;
 }
@@ -68,18 +68,20 @@ export async function exportResult(
 }
 
 export async function setApiKey(apiKey: string): Promise<void> {
-    await api.post('/set-api-key', null, {
-        params: { api_key: apiKey },
+    await api.post('/set-api-key', {
+        api_key: apiKey,
     });
 }
 
 export function isApiError(error: unknown): error is { response: { data: ApiError } } {
-    return (
-        typeof error === 'object' &&
-        error !== null &&
-        'response' in error &&
-        typeof (error as any).response?.data?.error === 'string'
-    );
+    if (typeof error !== 'object' || error === null) {
+        return false;
+    }
+    if (!('response' in error)) {
+        return false;
+    }
+    const maybeError = error as { response?: { data?: ApiError } };
+    return typeof maybeError.response?.data?.error === 'string';
 }
 
 export interface ProgressEvent {
@@ -117,6 +119,8 @@ export async function tailorCVWithProgress(
     let buffer = '';
     let finalResult: TailorResult | null = null;
 
+    let shouldStop = false;
+
     while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -137,6 +141,8 @@ export async function tailorCVWithProgress(
 
                     if (data.complete && data.result) {
                         finalResult = data.result;
+                        shouldStop = true;
+                        break;
                     }
                 } catch (e) {
                     if (e instanceof SyntaxError) {
@@ -146,6 +152,11 @@ export async function tailorCVWithProgress(
                     }
                 }
             }
+        }
+
+        if (shouldStop) {
+            await reader.cancel();
+            break;
         }
     }
 

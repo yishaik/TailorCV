@@ -28,7 +28,7 @@ export function ExportOptions({ result }: ExportOptionsProps) {
         const cv = result.tailored_cv;
         const coverLetter = result.cover_letter;
 
-        let html = `
+        const html = `
             <div style="font-family: 'Segoe UI', Arial, sans-serif; color: #333; max-width: 800px; margin: 0 auto; padding: 20px;">
                 <div style="text-align: center; margin-bottom: 20px;">
                     <h1 style="margin: 0; font-size: 28px; color: #1a1a2e;">${cv.header.name}</h1>
@@ -216,7 +216,7 @@ export function ExportOptions({ result }: ExportOptionsProps) {
             }}
         >
             <Typography variant="h6" sx={{ color: '#fff', fontWeight: 600, mb: 2 }}>
-                📥 Export
+                Export
             </Typography>
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -269,7 +269,7 @@ export function ExportOptions({ result }: ExportOptionsProps) {
                         borderColor: copied ? 'success.main' : 'primary.main',
                     }}
                 >
-                    {copied ? '✓ Copied to Clipboard' : 'Copy as Markdown'}
+                    {copied ? 'Copied to Clipboard' : 'Copy as Markdown'}
                 </Button>
             </Box>
         </Paper>

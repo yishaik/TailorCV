@@ -50,6 +50,36 @@ class TailorRequest(BaseModel):
     )
 
 
+class ExtractJobRequest(BaseModel):
+    """Request model for extracting job requirements."""
+
+    job_description: str = Field(
+        ...,
+        min_length=50,
+        description="The job description to parse"
+    )
+
+
+class ExtractCVRequest(BaseModel):
+    """Request model for extracting CV facts."""
+
+    cv_text: str = Field(
+        ...,
+        min_length=100,
+        description="Raw CV text"
+    )
+
+
+class ApiKeyRequest(BaseModel):
+    """Request model for setting API key in dev."""
+
+    api_key: str = Field(
+        ...,
+        min_length=10,
+        description="Gemini API key"
+    )
+
+
 class StrictnessConfig(BaseModel):
     """Configuration for each strictness level."""
     

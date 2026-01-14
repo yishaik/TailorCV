@@ -124,6 +124,7 @@ function App() {
   const [progressStep, setProgressStep] = useState(0);
   const [progressMessage, setProgressMessage] = useState('');
   const [totalSteps, setTotalSteps] = useState(6);
+  const [progressComplete, setProgressComplete] = useState(false);
 
   // Progress steps for display (will be updated by SSE)
   const progressSteps = [
@@ -168,6 +169,9 @@ function App() {
     let stageIndex = 0;
     setProgress(stages[0].value);
     setProgressLabel(stages[0].label);
+    setTotalSteps(stages.length);
+    setProgressStep(stageIndex + 1);
+    setProgressMessage(stages[0].label);
     if (progressTimer.current) {
       window.clearInterval(progressTimer.current);
     }
@@ -175,6 +179,8 @@ function App() {
       stageIndex = Math.min(stageIndex + 1, stages.length - 1);
       setProgress(stages[stageIndex].value);
       setProgressLabel(stages[stageIndex].label);
+      setProgressStep(stageIndex + 1);
+      setProgressMessage(stages[stageIndex].label);
     }, 1200);
   };
 
@@ -258,6 +264,7 @@ function App() {
     setError(null);
     setProgressStep(0);
     setProgressMessage('Starting...');
+    setProgressComplete(false);
 
     try {
       let tailorResult: TailorResult;
@@ -274,12 +281,18 @@ function App() {
         if (event.total !== undefined) {
           setTotalSteps(event.total);
         }
+        if (event.complete) {
+          setProgressComplete(true);
+          setProgressStep(event.total ?? totalSteps);
+          setProgressMessage('Complete');
+        }
       };
 
       if (cvFile) {
         // File upload doesn't support SSE yet, use simulated progress
         startProgress();
         try {
+          setProgressMessage('Uploading file...');
           tailorResult = await tailorCVWithFile(jobDescription, cvFile, {
             generateCoverLetter,
             strictnessLevel,
@@ -308,6 +321,9 @@ function App() {
       }
 
       setResult(tailorResult);
+      setProgressComplete(true);
+      setProgressStep(totalSteps);
+      setProgressMessage('Complete');
       setActiveStep(2);
     } catch (err) {
       console.error('Tailoring failed:', err);
@@ -528,7 +544,7 @@ function App() {
         }}
       >
         <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-          AI CV Tailor • Never fabricates, only optimizes
+          AI CV Tailor - Never fabricates, only optimizes
         </Typography>
       </Box>
 
@@ -564,6 +580,11 @@ function App() {
             <Typography variant="h6" sx={{ color: '#fff', mb: 3 }}>
               Tailoring Your CV
             </Typography>
+            {progressMessage && (
+              <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+                {progressMessage}
+              </Typography>
+            )}
 
             {/* Progress Steps */}
             <Box sx={{ mb: 3 }}>
@@ -580,7 +601,7 @@ function App() {
                     transition: 'opacity 0.3s ease',
                   }}
                 >
-                  {index + 1 < progressStep ? (
+                  {index + 1 < progressStep || (progressComplete && index + 1 === totalSteps) ? (
                     <CheckCircleIcon
                       sx={{ color: 'success.main', mr: 1.5, fontSize: 20 }}
                     />

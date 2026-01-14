@@ -4,12 +4,18 @@ API endpoints for CV tailoring.
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Response
 from fastapi.responses import StreamingResponse
 from typing import Optional, AsyncGenerator
-import asyncio
-import io
 import json
 import logging
+from pydantic import ValidationError
 
-from ..models.options import TailorRequest, TailorOptions
+from ..config import get_settings
+from ..models.options import (
+    TailorRequest,
+    TailorOptions,
+    ExtractJobRequest,
+    ExtractCVRequest,
+    ApiKeyRequest,
+)
 from ..models.output import TailorResult
 from ..models.job_requirements import JobRequirements
 from ..models.cv_facts import CVFacts
@@ -26,6 +32,7 @@ from ..utils.exporters import generate_markdown, generate_docx, generate_pdf
 from ..utils.llm_client import set_llm_api_key
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 router = APIRouter()
 
@@ -255,7 +262,7 @@ async def tailor_cv_with_upload(
     Accepts PDF, DOCX, or TXT files for the CV.
     """
     # Validate file type
-    allowed_extensions = [".pdf", ".docx", ".doc", ".txt", ".md"]
+    allowed_extensions = [".pdf", ".docx", ".txt", ".md"]
     filename = cv_file.filename or "upload.txt"
     
     if not any(filename.lower().endswith(ext) for ext in allowed_extensions):
@@ -282,22 +289,30 @@ async def tailor_cv_with_upload(
         )
     
     # Create request and process
-    request = TailorRequest(
-        job_description=job_description,
-        original_cv=cv_text,
-        options=TailorOptions(
+    try:
+        options = TailorOptions(
             generate_cover_letter=generate_cover_letter,
             strictness_level=strictness_level,
             output_format=output_format,
             user_instructions=user_instructions
         )
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "INVALID_OPTIONS", "message": e.errors()}
+        )
+
+    request = TailorRequest(
+        job_description=job_description,
+        original_cv=cv_text,
+        options=options
     )
 
     return await tailor_cv(request)
 
 
 @router.post("/extract-job", response_model=JobRequirements)
-async def extract_job(job_description: str):
+async def extract_job(request: ExtractJobRequest):
     """
     Standalone endpoint to extract job requirements.
     
@@ -305,7 +320,7 @@ async def extract_job(job_description: str):
     before running the full tailoring process.
     """
     try:
-        return await extract_job_requirements(job_description)
+        return await extract_job_requirements(request.job_description)
     except Exception as e:
         logger.exception("Failed to extract job requirements")
         raise HTTPException(
@@ -315,7 +330,7 @@ async def extract_job(job_description: str):
 
 
 @router.post("/extract-cv", response_model=CVFacts)
-async def extract_cv(cv_text: str):
+async def extract_cv(request: ExtractCVRequest):
     """
     Standalone endpoint to extract CV facts.
     
@@ -323,7 +338,7 @@ async def extract_cv(cv_text: str):
     from the CV before running the full tailoring process.
     """
     try:
-        return await extract_cv_facts(cv_text)
+        return await extract_cv_facts(request.cv_text)
     except Exception as e:
         logger.exception("Failed to extract CV facts")
         raise HTTPException(
@@ -382,7 +397,7 @@ async def export_result(
 
 
 @router.post("/set-api-key")
-async def set_api_key(api_key: str):
+async def set_api_key(request: ApiKeyRequest):
     """
     Set the Gemini API key for the current session.
     
@@ -390,7 +405,15 @@ async def set_api_key(api_key: str):
     use environment variables.
     """
     try:
-        set_llm_api_key(api_key)
+        if not settings.debug:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "FORBIDDEN",
+                    "message": "API key updates are disabled outside debug mode"
+                }
+            )
+        set_llm_api_key(request.api_key)
         return {"status": "success", "message": "API key configured"}
     except Exception as e:
         raise HTTPException(
