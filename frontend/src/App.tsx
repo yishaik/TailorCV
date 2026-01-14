@@ -235,9 +235,11 @@ function App() {
     }
 
     if (typeof err === 'object' && err !== null && 'response' in err) {
-      const response = (err as any).response;
+      const response = (err as {
+        response?: { status?: number; data?: { detail?: Array<{ msg?: string }> } };
+      }).response;
       if (response?.status === 422 && Array.isArray(response?.data?.detail)) {
-        const details = response.data.detail.map((item: any) => item.msg);
+        const details = response.data.detail.map((item) => item.msg || 'Invalid input');
         return {
           title: 'Invalid input',
           message: 'Please check the required fields and try again.',
