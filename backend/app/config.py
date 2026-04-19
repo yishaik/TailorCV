@@ -3,6 +3,7 @@ Application configuration settings.
 Uses environment variables for sensitive data.
 """
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from typing import Literal
 from functools import lru_cache
 
@@ -19,7 +20,16 @@ class Settings(BaseSettings):
     debug: bool = False
     
     # CORS settings
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    cors_origins: list[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+    cors_origin_regex: str = (
+        r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|"
+        r"^https://.*\.vercel\.app$"
+    )
     
     # Default options
     default_strictness: Literal["conservative", "moderate", "aggressive"] = "moderate"
@@ -27,12 +37,25 @@ class Settings(BaseSettings):
     default_language: str = "en"
     
     # LLM settings
-    gemini_model: str = "gemini-1.5-flash"
+    gemini_model: str = "gemini-3-flash-preview"
     max_retries: int = 3
     
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, value):
+        """Support both JSON arrays and comma-separated CORS origin strings."""
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if not cleaned:
+                return []
+            if cleaned.startswith("["):
+                return value
+            return [origin.strip() for origin in cleaned.split(",") if origin.strip()]
+        return value
 
 
 @lru_cache()

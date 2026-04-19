@@ -247,6 +247,135 @@ async def tailor_cv_stream(request: TailorRequest):
     )
 
 
+@router.post("/tailor/upload/stream")
+async def tailor_cv_with_upload_stream(
+    job_description: str = Form(...),
+    cv_file: UploadFile = File(...),
+    generate_cover_letter: bool = Form(True),
+    strictness_level: str = Form("moderate"),
+    output_format: str = Form("markdown"),
+    user_instructions: Optional[str] = Form(None)
+):
+    """
+    Streaming file-upload endpoint for cloud deployments.
+
+    Uses SSE to emit progress updates while handling uploaded CV files.
+    """
+    allowed_extensions = [".pdf", ".docx", ".txt", ".md"]
+    filename = cv_file.filename or "upload.txt"
+
+    if not any(filename.lower().endswith(ext) for ext in allowed_extensions):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "INVALID_FILE_TYPE",
+                "message": f"Supported formats: {', '.join(allowed_extensions)}"
+            }
+        )
+
+    async def generate_events() -> AsyncGenerator[str, None]:
+        try:
+            yield f"data: {json.dumps({'step': 1, 'total': 7, 'message': 'Reading uploaded CV file...'})}\n\n"
+            content = await cv_file.read()
+            cv_text = clean_extracted_text(extract_text(content, filename))
+
+            options = TailorOptions(
+                generate_cover_letter=generate_cover_letter,
+                strictness_level=strictness_level,
+                output_format=output_format,
+                user_instructions=user_instructions
+            )
+            request = TailorRequest(
+                job_description=job_description,
+                original_cv=cv_text,
+                options=options
+            )
+
+            yield f"data: {json.dumps({'step': 2, 'total': 7, 'message': 'Analyzing job description...'})}\n\n"
+            requirements = await extract_job_requirements(request.job_description)
+
+            yield f"data: {json.dumps({'step': 3, 'total': 7, 'message': 'Extracting CV facts...'})}\n\n"
+            cv_facts = await extract_cv_facts(request.original_cv)
+
+            yield f"data: {json.dumps({'step': 4, 'total': 7, 'message': 'Mapping requirements to experience...'})}\n\n"
+            mapping = await map_requirements_to_evidence(
+                requirements,
+                cv_facts,
+                request.options.strictness_level
+            )
+
+            yield f"data: {json.dumps({'step': 5, 'total': 7, 'message': 'Generating tailored CV...'})}\n\n"
+            tailored_cv, changes_log, borderline_items = await generate_tailored_cv(
+                requirements,
+                cv_facts,
+                mapping,
+                request.options.strictness_level,
+                request.options.user_instructions
+            )
+
+            yield f"data: {json.dumps({'step': 6, 'total': 7, 'message': 'Running quality checks...'})}\n\n"
+            is_valid, errors, warnings, match_score = run_quality_checks(
+                cv_facts,
+                tailored_cv,
+                mapping,
+                changes_log,
+                borderline_items
+            )
+
+            if not is_valid:
+                yield f"data: {json.dumps({'error': True, 'message': 'Quality checks detected potential fabrication', 'details': errors})}\n\n"
+                return
+
+            cover_letter = None
+            if request.options.generate_cover_letter:
+                yield f"data: {json.dumps({'step': 7, 'total': 7, 'message': 'Generating cover letter...'})}\n\n"
+                cover_letter = await generate_cover_letter(
+                    requirements,
+                    cv_facts,
+                    mapping,
+                    request.options.strictness_level,
+                    request.options.user_instructions
+                )
+            else:
+                yield f"data: {json.dumps({'step': 7, 'total': 7, 'message': 'Finalizing...'})}\n\n"
+
+            mapping_summary = {
+                "overall_score": mapping.overall_match.score,
+                "must_have_coverage": mapping.overall_match.must_have_coverage,
+                "nice_to_have_coverage": mapping.overall_match.nice_to_have_coverage,
+                "strongest_matches": mapping.overall_match.strongest_matches,
+                "critical_gaps": mapping.overall_match.critical_gaps,
+                "keywords_present": mapping.keyword_coverage.present_in_cv,
+                "keywords_missing": mapping.keyword_coverage.genuinely_missing
+            }
+
+            result = TailorResult(
+                tailored_cv=tailored_cv,
+                cover_letter=cover_letter,
+                changes_log=changes_log,
+                borderline_items=borderline_items,
+                match_score=match_score,
+                mapping_summary=mapping_summary
+            )
+
+            yield f"data: {json.dumps({'complete': True, 'result': result.model_dump()})}\n\n"
+        except ValidationError as e:
+            yield f"data: {json.dumps({'error': True, 'message': 'Invalid options', 'details': e.errors()})}\n\n"
+        except Exception as e:
+            logger.exception("Failed to tailor CV with file upload (streaming)")
+            yield f"data: {json.dumps({'error': True, 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        generate_events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
+
+
 @router.post("/tailor/upload")
 async def tailor_cv_with_upload(
     job_description: str = Form(...),
