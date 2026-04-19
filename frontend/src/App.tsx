@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   ThemeProvider,
   createTheme,
@@ -27,13 +27,14 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 import {
-  JobDescriptionInput,
-  CVUploader,
-  OptionsPanel,
-  ResultsDisplay,
-  ExportOptions,
+  JobDescriptionInput, CVUploader, OptionsPanel, ResultsDisplay, ExportOptions,
 } from './components';
-import { tailorCVWithFile, tailorCVWithProgress, isApiError, type ProgressEvent } from './services/api';
+import {
+  tailorCVWithFileAndProgress,
+  tailorCVWithProgress,
+  isApiError,
+  type ProgressEvent,
+} from './services/api';
 import type { TailorResult, StrictnessLevel, OutputFormat } from './types';
 
 // Dark theme with purple accent
@@ -118,7 +119,6 @@ function App() {
   } | null>(null);
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState('');
-  const progressTimer = useRef<number | null>(null);
 
   // Progress state - now driven by real backend SSE events
   const [progressStep, setProgressStep] = useState(0);
@@ -155,42 +155,6 @@ function App() {
     setActiveStep(0);
     setResult(null);
     setError(null);
-  };
-
-  const startProgress = () => {
-    const stages = [
-      { label: 'Extracting job requirements', value: 18 },
-      { label: 'Parsing CV content', value: 36 },
-      { label: 'Mapping evidence', value: 56 },
-      { label: 'Generating tailored CV', value: 74 },
-      { label: 'Running quality checks', value: 88 },
-      { label: 'Finalizing results', value: 96 },
-    ];
-    let stageIndex = 0;
-    setProgress(stages[0].value);
-    setProgressLabel(stages[0].label);
-    setTotalSteps(stages.length);
-    setProgressStep(stageIndex + 1);
-    setProgressMessage(stages[0].label);
-    if (progressTimer.current) {
-      window.clearInterval(progressTimer.current);
-    }
-    progressTimer.current = window.setInterval(() => {
-      stageIndex = Math.min(stageIndex + 1, stages.length - 1);
-      setProgress(stages[stageIndex].value);
-      setProgressLabel(stages[stageIndex].label);
-      setProgressStep(stageIndex + 1);
-      setProgressMessage(stages[stageIndex].label);
-    }, 1200);
-  };
-
-  const stopProgress = () => {
-    if (progressTimer.current) {
-      window.clearInterval(progressTimer.current);
-      progressTimer.current = null;
-    }
-    setProgress(0);
-    setProgressLabel('');
   };
 
   const formatError = (err: unknown) => {
@@ -276,9 +240,11 @@ function App() {
       const handleProgress = (event: ProgressEvent) => {
         if (event.step !== undefined) {
           setProgressStep(event.step);
+          setProgress(Math.round((event.step / (event.total ?? totalSteps)) * 100));
         }
         if (event.message) {
           setProgressMessage(event.message);
+          setProgressLabel(event.message);
         }
         if (event.total !== undefined) {
           setTotalSteps(event.total);
@@ -286,24 +252,24 @@ function App() {
         if (event.complete) {
           setProgressComplete(true);
           setProgressStep(event.total ?? totalSteps);
+          setProgress(100);
           setProgressMessage('Complete');
+          setProgressLabel('Complete');
         }
       };
 
       if (cvFile) {
-        // File upload doesn't support SSE yet, use simulated progress
-        startProgress();
-        try {
-          setProgressMessage('Uploading file...');
-          tailorResult = await tailorCVWithFile(jobDescription, cvFile, {
+        tailorResult = await tailorCVWithFileAndProgress(
+          jobDescription,
+          cvFile,
+          handleProgress,
+          {
             generateCoverLetter,
             strictnessLevel,
             outputFormat,
             userInstructions: trimmedInstructions || undefined,
-          });
-        } finally {
-          stopProgress();
-        }
+          }
+        );
       } else {
         // Use SSE streaming for real-time progress updates
         tailorResult = await tailorCVWithProgress(
@@ -332,7 +298,6 @@ function App() {
       setError(formatError(err));
     } finally {
       setLoading(false);
-      stopProgress();
     }
   };
 

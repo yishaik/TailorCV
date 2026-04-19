@@ -1,7 +1,16 @@
 import axios from 'axios';
 import type { TailorRequest, TailorResult, JobRequirements, CVFacts, ApiError } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+function resolveApiBaseUrl(): string {
+    const configuredUrl = import.meta.env.VITE_API_URL?.trim();
+    if (configuredUrl) {
+        return configuredUrl.replace(/\/+$/, '');
+    }
+
+    return '/api';
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -41,6 +50,109 @@ export async function tailorCVWithFile(
         },
     });
     return response.data;
+}
+
+async function parseStreamingTailorResponse(
+    response: Response,
+    onProgress: (event: ProgressEvent) => void
+): Promise<TailorResult> {
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+        throw new Error('No response body');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalResult: TailorResult | null = null;
+    let shouldStop = false;
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+            if (line.startsWith('data: ')) {
+                try {
+                    const data = JSON.parse(line.slice(6)) as ProgressEvent;
+                    onProgress(data);
+
+                    if (data.error) {
+                        throw new Error(data.message || 'Unknown error');
+                    }
+
+                    if (data.complete && data.result) {
+                        finalResult = data.result;
+                        shouldStop = true;
+                        break;
+                    }
+                } catch (e) {
+                    if (e instanceof SyntaxError) {
+                        console.warn('Failed to parse SSE data:', line);
+                    } else {
+                        throw e;
+                    }
+                }
+            }
+        }
+
+        if (shouldStop) {
+            await reader.cancel();
+            break;
+        }
+    }
+
+    if (!finalResult) {
+        throw new Error('No result received from server');
+    }
+
+    return finalResult;
+}
+
+export async function tailorCVWithFileAndProgress(
+    jobDescription: string,
+    cvFile: File,
+    onProgress: (event: ProgressEvent) => void,
+    options: {
+        generateCoverLetter?: boolean;
+        strictnessLevel?: string;
+        outputFormat?: string;
+        userInstructions?: string;
+    } = {}
+): Promise<TailorResult> {
+    const formData = new FormData();
+    formData.append('job_description', jobDescription);
+    formData.append('cv_file', cvFile);
+    formData.append('generate_cover_letter', String(options.generateCoverLetter ?? true));
+    formData.append('strictness_level', options.strictnessLevel ?? 'moderate');
+    formData.append('output_format', options.outputFormat ?? 'markdown');
+    if (options.userInstructions) {
+        formData.append('user_instructions', options.userInstructions);
+    }
+
+    let response: Response;
+    try {
+        response = await fetch(`${API_BASE_URL}/tailor/upload/stream`, {
+            method: 'POST',
+            headers: {
+                Accept: 'text/event-stream',
+            },
+            body: formData,
+        });
+    } catch {
+        throw new Error(
+            'Unable to reach the API. Check that the backend is running and the API URL is configured correctly.'
+        );
+    }
+
+    return parseStreamingTailorResponse(response, onProgress);
 }
 
 export async function extractJobRequirements(jobDescription: string): Promise<JobRequirements> {
@@ -98,71 +210,21 @@ export async function tailorCVWithProgress(
     request: TailorRequest,
     onProgress: (event: ProgressEvent) => void
 ): Promise<TailorResult> {
-    const response = await fetch(`${API_BASE_URL}/tailor/stream`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request),
-    });
-
-    if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+    let response: Response;
+    try {
+        response = await fetch(`${API_BASE_URL}/tailor/stream`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'text/event-stream',
+            },
+            body: JSON.stringify(request),
+        });
+    } catch {
+        throw new Error(
+            'Unable to reach the API. Check that the backend is running and the API URL is configured correctly.'
+        );
     }
 
-    const reader = response.body?.getReader();
-    if (!reader) {
-        throw new Error('No response body');
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let finalResult: TailorResult | null = null;
-
-    let shouldStop = false;
-
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-            if (line.startsWith('data: ')) {
-                try {
-                    const data = JSON.parse(line.slice(6)) as ProgressEvent;
-                    onProgress(data);
-
-                    if (data.error) {
-                        throw new Error(data.message || 'Unknown error');
-                    }
-
-                    if (data.complete && data.result) {
-                        finalResult = data.result;
-                        shouldStop = true;
-                        break;
-                    }
-                } catch (e) {
-                    if (e instanceof SyntaxError) {
-                        console.warn('Failed to parse SSE data:', line);
-                    } else {
-                        throw e;
-                    }
-                }
-            }
-        }
-
-        if (shouldStop) {
-            await reader.cancel();
-            break;
-        }
-    }
-
-    if (!finalResult) {
-        throw new Error('No result received from server');
-    }
-
-    return finalResult;
+    return parseStreamingTailorResponse(response, onProgress);
 }
