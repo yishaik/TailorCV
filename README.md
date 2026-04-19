@@ -60,7 +60,7 @@ Every modification is traceable back to your original experience. The system inc
 
 ---
 
-## Quick Start
+## Quick Start (Cloud-First)
 
 ### Prerequisites
 
@@ -68,7 +68,20 @@ Every modification is traceable back to your original experience. The system inc
 - Node.js 18 or higher
 - Google Gemini API key ([Get one here](https://makersuite.google.com/app/apikey))
 
-### Option 1: Local Development
+### Option 1: Vercel Cloud Deployment (Recommended)
+
+1. Create a Vercel project connected to this repository.
+2. Configure required environment variables in Vercel:
+   - `GEMINI_API_KEY`
+   - `CORS_ORIGINS` (comma-separated or JSON array)
+3. Keep `VITE_API_URL` unset to use same-origin `/api`, or set it explicitly if needed.
+4. Deploy from `main` (or via the GitHub Actions CD workflow).
+
+Cloud architecture:
+- Frontend is served from `frontend/dist`.
+- API routes are handled by the FastAPI serverless entrypoint at `api/index.py`.
+
+### Option 2: Local Development
 
 #### Backend Setup
 
@@ -112,7 +125,7 @@ The application will be available at:
 - Backend API: http://localhost:8000
 - API Documentation: http://localhost:8000/docs
 
-### Option 2: Docker Deployment
+### Option 3: Docker Deployment
 
 ```bash
 # Set your API key (Windows)
@@ -124,6 +137,20 @@ export GEMINI_API_KEY=your_api_key_here
 # Build and run
 docker-compose up --build
 ```
+
+---
+
+## CI/CD
+
+- **CI** (`.github/workflows/ci.yml`):
+  - Frontend: `npm ci`, `npm run lint`, `npm run build`
+  - Backend: `pip install -r requirements.txt`, compile check, FastAPI import smoke test
+- **CD** (`.github/workflows/cd-vercel.yml`):
+  - Production deploy to Vercel on push to `main` (and manual dispatch)
+  - Required GitHub secrets:
+    - `VERCEL_TOKEN`
+    - `VERCEL_ORG_ID`
+    - `VERCEL_PROJECT_ID`
 
 ---
 
