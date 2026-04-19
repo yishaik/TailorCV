@@ -54,7 +54,7 @@ Every modification is traceable back to your original experience. The system inc
 |-------|------------|
 | **Frontend** | React 19, TypeScript 5.8, Material UI 7.3, Vite |
 | **Backend** | Python 3.11+, FastAPI 0.109, Pydantic 2.5 |
-| **AI Engine** | Google Gemini API (gemini-1.5-flash) |
+| **AI Engine** | Google Gemini API (gemini-3-flash-preview) |
 | **Document Processing** | PyPDF2, python-docx, fpdf2 |
 | **Containerization** | Docker, Docker Compose |
 
@@ -343,7 +343,7 @@ TailorCV/
 |----------|----------|---------|-------------|
 | `GEMINI_API_KEY` | Yes | - | Google Gemini API key |
 | `DEBUG` | No | `false` | Enable debug mode |
-| `GEMINI_MODEL` | No | `gemini-1.5-flash` | Gemini model to use |
+| `GEMINI_MODEL` | No | `gemini-3-flash-preview` | Gemini model to use |
 | `CORS_ORIGINS` | No | `http://localhost:5173` | Allowed CORS origins |
 
 ### Frontend Environment
