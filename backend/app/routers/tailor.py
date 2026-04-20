@@ -253,6 +253,7 @@ async def tailor_cv_stream(request: Request, tailor_request: TailorRequest):
 @router.post("/tailor/upload/stream")
 @limiter.limit("10/minute")
 async def tailor_cv_with_upload_stream(
+    request: Request,
     job_description: str = Form(...),
     cv_file: UploadFile = File(...),
     generate_cover_letter: bool = Form(True),
@@ -383,6 +384,7 @@ async def tailor_cv_with_upload_stream(
 @router.post("/tailor/upload")
 @limiter.limit("10/minute")
 async def tailor_cv_with_upload(
+    request: Request,
     job_description: str = Form(...),
     cv_file: UploadFile = File(...),
     generate_cover_letter: bool = Form(True),
@@ -486,6 +488,7 @@ async def extract_cv(request: Request, extract_request: ExtractCVRequest):
 @router.post("/export/{format}")
 @limiter.limit("30/minute")
 async def export_result(
+    request: Request,
     format: str,
     result: TailorResult
 ):
