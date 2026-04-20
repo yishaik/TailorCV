@@ -42,17 +42,7 @@ async def health_check():
     return {
         "status": "healthy",
         "app": settings.app_name,
-        "version": settings.app_version
-    }
-
-
-@app.get("/api/health")
-async def health_check_api():
-    """Health check endpoint with /api prefix for clients expecting it."""
-    return {
-        "status": "healthy",
-        "app": settings.app_name,
-        "version": settings.app_version
+        "version": settings.app_version,
     }
 
 
