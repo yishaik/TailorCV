@@ -89,8 +89,15 @@ async def debug_pipeline_steps():
     try:
         await asyncio.wait_for(extract_cv_facts(test_cv), timeout=25)
         results["extract_cv"] = {"status": "ok", "seconds": round(time.time() - t0, 1)}
+    except asyncio.TimeoutError:
+        results["extract_cv"] = {"status": "error", "error": "TIMEOUT after 25s"}
     except Exception as e:
-        results["extract_cv"] = {"status": "error", "error": str(e), "trace": traceback.format_exc()[-300]}
+        results["extract_cv"] = {
+            "status": "error",
+            "error": repr(e),
+            "error_type": type(e).__name__,
+            "trace": traceback.format_exc()[-500]
+        }
 
     return results
 
