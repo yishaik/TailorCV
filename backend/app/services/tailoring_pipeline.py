@@ -5,6 +5,7 @@ Shared logic used by all tailor endpoints (streaming, non-streaming, upload).
 """
 import logging
 import time
+import asyncio
 from typing import Optional
 
 from ..models.options import TailorRequest
@@ -37,6 +38,11 @@ async def run_tailoring_pipeline(
     """
     Execute the full CV tailoring pipeline.
 
+    Steps 1+2 run in parallel (independent Gemini calls).
+    Step 3 depends on 1+2.
+    Step 4 depends on 3.
+    Step 5+6 run sequentially (quality check then cover letter).
+
     Args:
         request: The tailoring request with job description, CV, and options.
         on_step: Optional callback(step_number, total_steps, message) for progress.
@@ -53,19 +59,20 @@ async def run_tailoring_pipeline(
         if on_step:
             on_step(step, total_steps, message)
 
-    # Step 1: Extract job requirements
-    _notify(1, "Analyzing job description...")
-    t0 = time.time()
-    requirements = await extract_job_requirements(request.job_description)
-    logger.info(f"Step 1 (extract_job) took {time.time()-t0:.1f}s")
+    t_total = time.time()
 
-    # Step 2: Extract CV facts
+    # Steps 1+2: Run in PARALLEL (independent Gemini calls)
+    _notify(1, "Analyzing job description...")
     _notify(2, "Extracting CV facts...")
     t0 = time.time()
-    cv_facts = await extract_cv_facts(request.original_cv)
-    logger.info(f"Step 2 (extract_cv) took {time.time()-t0:.1f}s")
+    requirements, cv_facts = await asyncio.gather(
+        extract_job_requirements(request.job_description),
+        extract_cv_facts(request.original_cv),
+    )
+    elapsed = time.time() - t0
+    logger.info(f"Steps 1+2 (parallel) took {elapsed:.1f}s")
 
-    # Step 3: Map requirements to evidence
+    # Step 3: Map requirements to evidence (depends on 1+2)
     _notify(3, "Mapping requirements to experience...")
     t0 = time.time()
     mapping = await map_requirements_to_evidence(
@@ -75,7 +82,7 @@ async def run_tailoring_pipeline(
     )
     logger.info(f"Step 3 (mapper) took {time.time()-t0:.1f}s")
 
-    # Step 4: Generate tailored CV
+    # Step 4: Generate tailored CV (depends on 3)
     _notify(4, "Generating tailored CV...")
     t0 = time.time()
     tailored_cv, changes_log, borderline_items = await generate_tailored_cv(
@@ -87,7 +94,7 @@ async def run_tailoring_pipeline(
     )
     logger.info(f"Step 4 (generate_cv) took {time.time()-t0:.1f}s")
 
-    # Step 5: Run quality checks
+    # Step 5: Run quality checks (sync, no Gemini call)
     _notify(5, "Running quality checks...")
     is_valid, errors, warnings, match_score = run_quality_checks(
         cv_facts,
@@ -104,7 +111,7 @@ async def run_tailoring_pipeline(
             details=errors,
         )
 
-    # Step 6 (or 7): Generate cover letter or finalize
+    # Step 6: Generate cover letter
     cover_letter = None
     if request.options.generate_cover_letter:
         _notify(6, "Generating cover letter...")
@@ -119,6 +126,8 @@ async def run_tailoring_pipeline(
         logger.info(f"Step 6 (cover_letter) took {time.time()-t0:.1f}s")
     else:
         _notify(6, "Finalizing...")
+
+    logger.info(f"Total pipeline took {time.time()-t_total:.1f}s")
 
     # Build mapping summary
     mapping_summary = {
