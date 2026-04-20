@@ -1,7 +1,7 @@
 """
 API endpoints for CV tailoring.
 """
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Response
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Response, Request
 from fastapi.responses import StreamingResponse
 from typing import Optional, AsyncGenerator
 import json
@@ -30,6 +30,7 @@ from ..services.cover_letter import generate_cover_letter
 from ..utils.document_parser import extract_text, clean_extracted_text
 from ..utils.exporters import generate_markdown, generate_docx, generate_pdf
 from ..utils.llm_client import set_llm_api_key
+from ..utils.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -38,7 +39,8 @@ router = APIRouter()
 
 
 @router.post("/tailor", response_model=TailorResult)
-async def tailor_cv(request: TailorRequest):
+@limiter.limit("10/minute")
+async def tailor_cv(request: Request, tailor_request: TailorRequest):
     """
     Main endpoint: Tailor a CV for a specific job description.
     
@@ -56,18 +58,18 @@ async def tailor_cv(request: TailorRequest):
     try:
         # Step 1: Extract job requirements
         logger.info("Extracting job requirements...")
-        requirements = await extract_job_requirements(request.job_description)
+        requirements = await extract_job_requirements(tailor_request.job_description)
         
         # Step 2: Extract CV facts
         logger.info("Extracting CV facts...")
-        cv_facts = await extract_cv_facts(request.original_cv)
+        cv_facts = await extract_cv_facts(tailor_request.original_cv)
         
         # Step 3: Map requirements to evidence
         logger.info("Mapping requirements to evidence...")
         mapping = await map_requirements_to_evidence(
             requirements,
             cv_facts,
-            request.options.strictness_level
+            tailor_request.options.strictness_level
         )
         
         # Step 4: Generate tailored CV
@@ -76,8 +78,8 @@ async def tailor_cv(request: TailorRequest):
             requirements,
             cv_facts,
             mapping,
-            request.options.strictness_level,
-            request.options.user_instructions
+            tailor_request.options.strictness_level,
+            tailor_request.options.user_instructions
         )
         
         # Step 5: Run quality checks
@@ -103,14 +105,14 @@ async def tailor_cv(request: TailorRequest):
         
         # Step 6: Generate cover letter if requested
         cover_letter = None
-        if request.options.generate_cover_letter:
+        if tailor_request.options.generate_cover_letter:
             logger.info("Generating cover letter...")
             cover_letter = await generate_cover_letter(
                 requirements,
                 cv_facts,
                 mapping,
-                request.options.strictness_level,
-                request.options.user_instructions
+                tailor_request.options.strictness_level,
+                tailor_request.options.user_instructions
             )
         
         # Build mapping summary
@@ -147,7 +149,8 @@ async def tailor_cv(request: TailorRequest):
 
 
 @router.post("/tailor/stream")
-async def tailor_cv_stream(request: TailorRequest):
+@limiter.limit("10/minute")
+async def tailor_cv_stream(request: Request, tailor_request: TailorRequest):
     """
     Streaming endpoint for CV tailoring with real-time progress updates.
 
@@ -157,18 +160,18 @@ async def tailor_cv_stream(request: TailorRequest):
         try:
             # Step 1: Extract job requirements
             yield f"data: {json.dumps({'step': 1, 'total': 6, 'message': 'Analyzing job description...'})}\n\n"
-            requirements = await extract_job_requirements(request.job_description)
+            requirements = await extract_job_requirements(tailor_request.job_description)
 
             # Step 2: Extract CV facts
             yield f"data: {json.dumps({'step': 2, 'total': 6, 'message': 'Extracting CV facts...'})}\n\n"
-            cv_facts = await extract_cv_facts(request.original_cv)
+            cv_facts = await extract_cv_facts(tailor_request.original_cv)
 
             # Step 3: Map requirements to evidence
             yield f"data: {json.dumps({'step': 3, 'total': 6, 'message': 'Mapping requirements to experience...'})}\n\n"
             mapping = await map_requirements_to_evidence(
                 requirements,
                 cv_facts,
-                request.options.strictness_level
+                tailor_request.options.strictness_level
             )
 
             # Step 4: Generate tailored CV
@@ -177,8 +180,8 @@ async def tailor_cv_stream(request: TailorRequest):
                 requirements,
                 cv_facts,
                 mapping,
-                request.options.strictness_level,
-                request.options.user_instructions
+                tailor_request.options.strictness_level,
+                tailor_request.options.user_instructions
             )
 
             # Step 5: Run quality checks
@@ -197,14 +200,14 @@ async def tailor_cv_stream(request: TailorRequest):
 
             # Step 6: Generate cover letter if requested
             cover_letter = None
-            if request.options.generate_cover_letter:
+            if tailor_request.options.generate_cover_letter:
                 yield f"data: {json.dumps({'step': 6, 'total': 6, 'message': 'Generating cover letter...'})}\n\n"
                 cover_letter = await generate_cover_letter(
                     requirements,
                     cv_facts,
                     mapping,
-                    request.options.strictness_level,
-                    request.options.user_instructions
+                    tailor_request.options.strictness_level,
+                    tailor_request.options.user_instructions
                 )
             else:
                 yield f"data: {json.dumps({'step': 6, 'total': 6, 'message': 'Finalizing...'})}\n\n"
@@ -248,6 +251,7 @@ async def tailor_cv_stream(request: TailorRequest):
 
 
 @router.post("/tailor/upload/stream")
+@limiter.limit("10/minute")
 async def tailor_cv_with_upload_stream(
     job_description: str = Form(...),
     cv_file: UploadFile = File(...),
@@ -285,23 +289,23 @@ async def tailor_cv_with_upload_stream(
                 output_format=output_format,
                 user_instructions=user_instructions
             )
-            request = TailorRequest(
+            tailor_request = TailorRequest(
                 job_description=job_description,
                 original_cv=cv_text,
                 options=options
             )
 
             yield f"data: {json.dumps({'step': 2, 'total': 7, 'message': 'Analyzing job description...'})}\n\n"
-            requirements = await extract_job_requirements(request.job_description)
+            requirements = await extract_job_requirements(tailor_request.job_description)
 
             yield f"data: {json.dumps({'step': 3, 'total': 7, 'message': 'Extracting CV facts...'})}\n\n"
-            cv_facts = await extract_cv_facts(request.original_cv)
+            cv_facts = await extract_cv_facts(tailor_request.original_cv)
 
             yield f"data: {json.dumps({'step': 4, 'total': 7, 'message': 'Mapping requirements to experience...'})}\n\n"
             mapping = await map_requirements_to_evidence(
                 requirements,
                 cv_facts,
-                request.options.strictness_level
+                tailor_request.options.strictness_level
             )
 
             yield f"data: {json.dumps({'step': 5, 'total': 7, 'message': 'Generating tailored CV...'})}\n\n"
@@ -309,8 +313,8 @@ async def tailor_cv_with_upload_stream(
                 requirements,
                 cv_facts,
                 mapping,
-                request.options.strictness_level,
-                request.options.user_instructions
+                tailor_request.options.strictness_level,
+                tailor_request.options.user_instructions
             )
 
             yield f"data: {json.dumps({'step': 6, 'total': 7, 'message': 'Running quality checks...'})}\n\n"
@@ -327,14 +331,14 @@ async def tailor_cv_with_upload_stream(
                 return
 
             cover_letter = None
-            if request.options.generate_cover_letter:
+            if tailor_request.options.generate_cover_letter:
                 yield f"data: {json.dumps({'step': 7, 'total': 7, 'message': 'Generating cover letter...'})}\n\n"
                 cover_letter = await generate_cover_letter(
                     requirements,
                     cv_facts,
                     mapping,
-                    request.options.strictness_level,
-                    request.options.user_instructions
+                    tailor_request.options.strictness_level,
+                    tailor_request.options.user_instructions
                 )
             else:
                 yield f"data: {json.dumps({'step': 7, 'total': 7, 'message': 'Finalizing...'})}\n\n"
@@ -377,6 +381,7 @@ async def tailor_cv_with_upload_stream(
 
 
 @router.post("/tailor/upload")
+@limiter.limit("10/minute")
 async def tailor_cv_with_upload(
     job_description: str = Form(...),
     cv_file: UploadFile = File(...),
@@ -441,7 +446,8 @@ async def tailor_cv_with_upload(
 
 
 @router.post("/extract-job", response_model=JobRequirements)
-async def extract_job(request: ExtractJobRequest):
+@limiter.limit("20/minute")
+async def extract_job(request: Request, extract_request: ExtractJobRequest):
     """
     Standalone endpoint to extract job requirements.
     
@@ -449,7 +455,7 @@ async def extract_job(request: ExtractJobRequest):
     before running the full tailoring process.
     """
     try:
-        return await extract_job_requirements(request.job_description)
+        return await extract_job_requirements(extract_request.job_description)
     except Exception as e:
         logger.exception("Failed to extract job requirements")
         raise HTTPException(
@@ -459,7 +465,8 @@ async def extract_job(request: ExtractJobRequest):
 
 
 @router.post("/extract-cv", response_model=CVFacts)
-async def extract_cv(request: ExtractCVRequest):
+@limiter.limit("20/minute")
+async def extract_cv(request: Request, extract_request: ExtractCVRequest):
     """
     Standalone endpoint to extract CV facts.
     
@@ -467,7 +474,7 @@ async def extract_cv(request: ExtractCVRequest):
     from the CV before running the full tailoring process.
     """
     try:
-        return await extract_cv_facts(request.cv_text)
+        return await extract_cv_facts(extract_request.cv_text)
     except Exception as e:
         logger.exception("Failed to extract CV facts")
         raise HTTPException(
@@ -477,6 +484,7 @@ async def extract_cv(request: ExtractCVRequest):
 
 
 @router.post("/export/{format}")
+@limiter.limit("30/minute")
 async def export_result(
     format: str,
     result: TailorResult
