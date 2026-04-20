@@ -3,9 +3,12 @@ FastAPI application entry point.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from .config import get_settings
 from .routers import tailor
+from .utils.rate_limit import limiter, rate_limit_handler
 
 settings = get_settings()
 
@@ -14,6 +17,10 @@ app = FastAPI(
     version=settings.app_version,
     description="Intelligent CV tailoring system that customizes CVs for specific job descriptions",
 )
+
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 
 # Configure CORS
 app.add_middleware(
@@ -35,17 +42,7 @@ async def health_check():
     return {
         "status": "healthy",
         "app": settings.app_name,
-        "version": settings.app_version
-    }
-
-
-@app.get("/api/health")
-async def health_check_api():
-    """Health check endpoint with /api prefix for clients expecting it."""
-    return {
-        "status": "healthy",
-        "app": settings.app_name,
-        "version": settings.app_version
+        "version": settings.app_version,
     }
 
 
