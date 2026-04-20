@@ -4,6 +4,7 @@ Core CV tailoring pipeline.
 Shared logic used by all tailor endpoints (streaming, non-streaming, upload).
 """
 import logging
+import time
 from typing import Optional
 
 from ..models.options import TailorRequest
@@ -54,22 +55,29 @@ async def run_tailoring_pipeline(
 
     # Step 1: Extract job requirements
     _notify(1, "Analyzing job description...")
+    t0 = time.time()
     requirements = await extract_job_requirements(request.job_description)
+    logger.info(f"Step 1 (extract_job) took {time.time()-t0:.1f}s")
 
     # Step 2: Extract CV facts
     _notify(2, "Extracting CV facts...")
+    t0 = time.time()
     cv_facts = await extract_cv_facts(request.original_cv)
+    logger.info(f"Step 2 (extract_cv) took {time.time()-t0:.1f}s")
 
     # Step 3: Map requirements to evidence
     _notify(3, "Mapping requirements to experience...")
+    t0 = time.time()
     mapping = await map_requirements_to_evidence(
         requirements,
         cv_facts,
         request.options.strictness_level,
     )
+    logger.info(f"Step 3 (mapper) took {time.time()-t0:.1f}s")
 
     # Step 4: Generate tailored CV
     _notify(4, "Generating tailored CV...")
+    t0 = time.time()
     tailored_cv, changes_log, borderline_items = await generate_tailored_cv(
         requirements,
         cv_facts,
@@ -77,6 +85,7 @@ async def run_tailoring_pipeline(
         request.options.strictness_level,
         request.options.user_instructions,
     )
+    logger.info(f"Step 4 (generate_cv) took {time.time()-t0:.1f}s")
 
     # Step 5: Run quality checks
     _notify(5, "Running quality checks...")
@@ -99,6 +108,7 @@ async def run_tailoring_pipeline(
     cover_letter = None
     if request.options.generate_cover_letter:
         _notify(6, "Generating cover letter...")
+        t0 = time.time()
         cover_letter = await generate_cover_letter(
             requirements,
             cv_facts,
@@ -106,6 +116,7 @@ async def run_tailoring_pipeline(
             request.options.strictness_level,
             request.options.user_instructions,
         )
+        logger.info(f"Step 6 (cover_letter) took {time.time()-t0:.1f}s")
     else:
         _notify(6, "Finalizing...")
 

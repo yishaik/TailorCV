@@ -46,6 +46,31 @@ async def health_check():
     }
 
 
+@app.get("/debug/pipeline-steps")
+async def debug_pipeline_steps():
+    """Debug endpoint — time each Gemini call in the pipeline."""
+    import time
+    from .services.job_extractor import extract_job_requirements
+    from .services.cv_extractor import extract_cv_facts
+
+    results = {}
+    test_job = "We need a Python developer with 3 years experience building REST APIs."
+    test_cv = "Jane Doe. Software Engineer at Acme Corp. Built REST APIs with Python."
+
+    for name, fn, arg in [
+        ("extract_job", extract_job_requirements, test_job),
+        ("extract_cv", extract_cv_facts, test_cv),
+    ]:
+        t0 = time.time()
+        try:
+            await fn(arg)
+            results[name] = {"status": "ok", "seconds": round(time.time() - t0, 1)}
+        except Exception as e:
+            results[name] = {"status": "error", "error": str(e), "seconds": round(time.time() - t0, 1)}
+
+    return results
+
+
 @app.get("/")
 async def root():
     """Root endpoint with API info."""
