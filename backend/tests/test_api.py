@@ -134,7 +134,7 @@ class TestTailorStreamEndpoint:
         assert last_event["complete"] is True
 
     async def test_stream_fabrication_error(self, client):
-        with patch("app.routers.tailor.run_tailoring_pipeline", new_callable=AsyncAsyncMock) as mock_pipeline:
+        with patch("app.routers.tailor.run_tailoring_pipeline", new_callable=AsyncMock) as mock_pipeline:
             mock_pipeline.side_effect = TailoringError("FABRICATION_DETECTED", "Bad", ["detail"])
             resp = await client.post("/api/tailor/stream", json={
                 "job_description": JOB_DESCRIPTION,

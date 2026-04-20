@@ -6,7 +6,7 @@ Shared logic used by all tailor endpoints (streaming, non-streaming, upload).
 import logging
 from typing import Optional
 
-from ..models.options import TailorRequest, StrictnessLevel
+from ..models.options import TailorRequest
 from ..models.output import TailorResult
 
 from .job_extractor import extract_job_requirements

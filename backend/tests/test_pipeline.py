@@ -2,7 +2,7 @@
 Tests for the shared tailoring pipeline.
 """
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.services.tailoring_pipeline import run_tailoring_pipeline, TailoringError
 from app.models.options import TailorRequest, TailorOptions
@@ -21,53 +21,34 @@ def pipeline_request():
     )
 
 
-def _patch_pipeline_services():
-    """Patch all service functions used by the pipeline."""
-    return (
-        patch("app.services.tailoring_pipeline.extract_job_requirements", new_callable=AsyncMock),
-        patch("app.services.tailoring_pipeline.extract_cv_facts", new_callable=AsyncMock),
-        patch("app.services.tailoring_pipeline.map_requirements_to_evidence", new_callable=AsyncMock),
-        patch("app.services.tailoring_pipeline.generate_tailored_cv", new_callable=AsyncMock),
-        patch("app.services.tailoring_pipeline.run_quality_checks"),
-        patch("app.services.tailoring_pipeline.generate_cover_letter", new_callable=AsyncMock),
-    )
+def _mock_pipeline_services():
+    """Return a dict of mocked service functions."""
+    return {
+        "app.services.tailoring_pipeline.extract_job_requirements": AsyncMock(return_value=make_job_requirements()),
+        "app.services.tailoring_pipeline.extract_cv_facts": AsyncMock(return_value=make_cv_facts()),
+        "app.services.tailoring_pipeline.map_requirements_to_evidence": AsyncMock(return_value=make_mapping()),
+        "app.services.tailoring_pipeline.generate_tailored_cv": AsyncMock(return_value=(make_tailored_cv(), [], [])),
+        "app.services.tailoring_pipeline.run_quality_checks": MagicMock(return_value=(True, [], [], make_match_score())),
+        "app.services.tailoring_pipeline.generate_cover_letter": AsyncMock(return_value=None),
+    }
 
 
 class TestTailoringPipeline:
     @pytest.mark.anyio
     async def test_successful_run(self, pipeline_request):
-        with (
-            _patch_pipeline_services()[0] as mock_extract_job,
-            _patch_pipeline_services()[1] as mock_extract_cv,
-            _patch_pipeline_services()[2] as mock_map,
-            _patch_pipeline_services()[3] as mock_gen_cv,
-            _patch_pipeline_services()[4] as mock_qa,
-            _patch_pipeline_services()[5] as mock_cover,
-        ):
-            mock_extract_job.return_value = make_job_requirements()
-            mock_extract_cv.return_value = make_cv_facts()
-            mock_map.return_value = make_mapping()
-            mock_gen_cv.return_value = (make_tailored_cv(), [], [])
-            mock_qa.return_value = (True, [], [], make_match_score())
-            mock_cover.return_value = None
-
-            with patch("app.services.tailoring_pipeline.extract_job_requirements", new_callable=AsyncMock) as m1, \
-                 patch("app.services.tailoring_pipeline.extract_cv_facts", new_callable=AsyncMock) as m2, \
-                 patch("app.services.tailoring_pipeline.map_requirements_to_evidence", new_callable=AsyncMock) as m3, \
-                 patch("app.services.tailoring_pipeline.generate_tailored_cv", new_callable=AsyncMock) as m4, \
-                 patch("app.services.tailoring_pipeline.run_quality_checks") as m5, \
-                 patch("app.services.tailoring_pipeline.generate_cover_letter", new_callable=AsyncMock) as m6:
-                m1.return_value = make_job_requirements()
-                m2.return_value = make_cv_facts()
-                m3.return_value = make_mapping()
-                m4.return_value = (make_tailored_cv(), [], [])
-                m5.return_value = (True, [], [], make_match_score())
-                m6.return_value = None
-
+        mocks = _mock_pipeline_services()
+        with patch.dict("sys.modules", {}):
+            for target, mock in mocks.items():
+                patcher = patch(target, mock)
+                patcher.start()
+            try:
                 result = await run_tailoring_pipeline(pipeline_request)
+            finally:
+                for target in mocks:
+                    patch(target, mocks[target]).stop()
 
-            assert result.tailored_cv.header.name == "Jane Doe"
-            assert result.match_score.score == 75
+        assert result.tailored_cv.header.name == "Jane Doe"
+        assert result.match_score.score == 75
 
     @pytest.mark.anyio
     async def test_progress_callback(self, pipeline_request):
@@ -76,38 +57,36 @@ class TestTailoringPipeline:
         def on_step(step, total, msg):
             steps.append((step, total, msg))
 
-        with patch("app.services.tailoring_pipeline.extract_job_requirements", new_callable=AsyncMock) as m1, \
-             patch("app.services.tailoring_pipeline.extract_cv_facts", new_callable=AsyncMock) as m2, \
-             patch("app.services.tailoring_pipeline.map_requirements_to_evidence", new_callable=AsyncMock) as m3, \
-             patch("app.services.tailoring_pipeline.generate_tailored_cv", new_callable=AsyncMock) as m4, \
-             patch("app.services.tailoring_pipeline.run_quality_checks") as m5:
-            m1.return_value = make_job_requirements()
-            m2.return_value = make_cv_facts()
-            m3.return_value = make_mapping()
-            m4.return_value = (make_tailored_cv(), [], [])
-            m5.return_value = (True, [], [], make_match_score())
-
+        mocks = _mock_pipeline_services()
+        patchers = [patch(t, m) for t, m in mocks.items()]
+        for p in patchers:
+            p.start()
+        try:
             await run_tailoring_pipeline(pipeline_request, on_step=on_step)
+        finally:
+            for p in patchers:
+                p.stop()
 
         # Should have 6 progress callbacks (no cover letter)
         assert len(steps) == 6
-        assert steps[0][0] == 1  # step 1
-        assert steps[-1][0] == 6  # step 6
+        assert steps[0][0] == 1
+        assert steps[-1][0] == 6
 
     @pytest.mark.anyio
     async def test_fabrication_raises_error(self, pipeline_request):
-        with patch("app.services.tailoring_pipeline.extract_job_requirements", new_callable=AsyncMock) as m1, \
-             patch("app.services.tailoring_pipeline.extract_cv_facts", new_callable=AsyncMock) as m2, \
-             patch("app.services.tailoring_pipeline.map_requirements_to_evidence", new_callable=AsyncMock) as m3, \
-             patch("app.services.tailoring_pipeline.generate_tailored_cv", new_callable=AsyncMock) as m4, \
-             patch("app.services.tailoring_pipeline.run_quality_checks") as m5:
-            m1.return_value = make_job_requirements()
-            m2.return_value = make_cv_facts()
-            m3.return_value = make_mapping()
-            m4.return_value = (make_tailored_cv(), [], [])
-            m5.return_value = (False, ["Fabricated company"], [], make_match_score())
-
+        mocks = _mock_pipeline_services()
+        # Override quality checks to return failure
+        mocks["app.services.tailoring_pipeline.run_quality_checks"] = MagicMock(
+            return_value=(False, ["Fabricated company"], [], make_match_score())
+        )
+        patchers = [patch(t, m) for t, m in mocks.items()]
+        for p in patchers:
+            p.start()
+        try:
             with pytest.raises(TailoringError) as exc_info:
                 await run_tailoring_pipeline(pipeline_request)
+        finally:
+            for p in patchers:
+                p.stop()
 
-            assert exc_info.value.error_type == "FABRICATION_DETECTED"
+        assert exc_info.value.error_type == "FABRICATION_DETECTED"
