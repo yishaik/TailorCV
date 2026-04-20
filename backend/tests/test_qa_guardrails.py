@@ -28,11 +28,16 @@ from tests.conftest import (
 class TestFabricationDetection:
     def test_no_fabrication(self):
         cv = make_cv_facts()
-        tailored = make_tailored_cv()
+        tailored = make_tailored_cv(
+            skills=TailoredSkills(
+                primary=["Python", "FastAPI"],  # Only explicitly listed skills
+                secondary=["Docker"],
+                tools=[],
+            ),
+        )
         validator = QAValidator(cv, tailored)
         is_valid, errors, warnings = validator.validate_all()
-        assert is_valid
-        assert len(errors) == 0
+        assert is_valid, f"Unexpected errors: {errors}"
 
     def test_fabricated_company(self):
         cv = make_cv_facts()
@@ -67,13 +72,13 @@ class TestFabricationDetection:
         cv = make_cv_facts()
         tailored = make_tailored_cv(
             skills=TailoredSkills(
-                primary=["Python", "FastAPI"],  # In original
-                secondary=["Docker"],
-                tools=["Git"],
+                primary=["Python", "FastAPI", "Docker"],  # All in explicitly_listed
+                secondary=[],
+                tools=[],
             ),
         )
         has_fab, errors = detect_fabrication(cv, tailored)
-        assert not has_fab
+        assert not has_fab, f"Unexpected fabrication: {errors}"
 
 
 # ===================================================================
@@ -191,10 +196,12 @@ class TestMatchScoreCalculation:
 class TestRunQualityChecks:
     def test_clean_pass(self):
         cv = make_cv_facts()
-        tailored = make_tailored_cv()
+        tailored = make_tailored_cv(
+            skills=TailoredSkills(primary=["Python", "FastAPI", "Docker"], secondary=[], tools=[]),
+        )
         mapping = make_mapping()
         is_valid, errors, warnings, score = run_quality_checks(cv, tailored, mapping, [], [])
-        assert is_valid
+        assert is_valid, f"Unexpected errors: {errors}"
         assert score.score > 0
 
     def test_fabrication_fails(self):

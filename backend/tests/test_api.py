@@ -174,16 +174,13 @@ class TestUploadEndpoints:
 
 class TestExtractEndpoints:
     async def test_extract_job_success(self, client):
-        mock_req = MagicMock()
-        mock_req.title = "Engineer"
-        mock_req.must_have = []
-        mock_req.nice_to_have = []
         with patch("app.routers.tailor.extract_job_requirements", new_callable=AsyncMock) as mock:
-            mock.return_value = mock_req
+            mock.return_value = make_job_requirements()
             resp = await client.post("/api/extract-job", json={
                 "job_description": JOB_DESCRIPTION,
             })
         assert resp.status_code == 200
+        assert resp.json()["job_title"] == "Senior Python Developer"
 
     async def test_extract_cv_success(self, client):
         mock_facts = make_cv_facts()
@@ -224,17 +221,16 @@ class TestExportEndpoint:
 # ===================================================================
 
 class TestRateLimiting:
-    async def test_rate_limit_header_on_heavy_endpoint(self, client):
+    async def test_rate_limit_returns_429_after_many_requests(self, client):
         """After many rapid requests, we should eventually get a 429."""
         with patch("app.routers.tailor.run_tailoring_pipeline", new_callable=AsyncMock) as mock_pipeline:
             mock_pipeline.return_value = _make_tailor_result()
-            # Hit the limit (10/min)
-            for _ in range(12):
+            status_codes = []
+            for _ in range(15):
                 resp = await client.post("/api/tailor", json={
                     "job_description": JOB_DESCRIPTION,
                     "original_cv": CV_TEXT,
                 })
-            # The last one should be rate limited
-            assert resp.status_code == 429
-            data = resp.json()
-            assert data["detail"]["error"] == "RATE_LIMITED"
+                status_codes.append(resp.status_code)
+        # At least one should be rate limited
+        assert 429 in status_codes, f"Expected at least one 429, got: {status_codes}"

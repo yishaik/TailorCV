@@ -77,14 +77,14 @@ def make_cv_facts(**overrides) -> CVFacts:
 
 def make_job_requirements(**overrides) -> JobRequirements:
     defaults = dict(
-        title="Senior Python Developer",
+        job_title="Senior Python Developer",
         company="TechCo",
         must_have=[
-            Requirement(text="3+ years Python", category="experience", evidence_type="explicit"),
-            Requirement(text="REST API development", category="skills", evidence_type="explicit"),
+            Requirement(description="3+ years Python", category="experience", keywords=["Python"]),
+            Requirement(description="REST API development", category="technical_skill", keywords=["REST"]),
         ],
         nice_to_have=[
-            Requirement(text="Docker experience", category="skills", evidence_type="explicit"),
+            Requirement(description="Docker experience", category="technical_skill", keywords=["Docker"]),
         ],
     )
     defaults.update(overrides)
