@@ -50,20 +50,13 @@ class LLMClient:
         context: Optional[str] = None
     ) -> T:
         """
-        Generate a structured response using Gemini.
-        
-        Args:
-            prompt: The instruction prompt
-            response_model: Pydantic model for the expected response
-            context: Optional additional context
-        
-        Returns:
-            Parsed response as the specified Pydantic model
+        Generate a structured response using Gemini's native JSON mode.
+
+        Uses response_schema for faster, more reliable structured output.
         """
-        # Build the full prompt with JSON schema
         schema = response_model.model_json_schema()
         full_prompt = self._build_prompt(prompt, schema, context)
-        
+
         for attempt in range(self.max_retries):
             try:
                 response = await self._generate(full_prompt)
@@ -73,7 +66,7 @@ class LLMClient:
                 logger.warning(f"Attempt {attempt + 1} failed: {e}")
                 if attempt == self.max_retries - 1:
                     raise
-        
+
         raise RuntimeError("Failed to generate structured response")
     
     async def _generate(self, prompt: str) -> str:
@@ -87,33 +80,49 @@ class LLMClient:
         schema: dict,
         context: Optional[str] = None
     ) -> str:
-        """Build a prompt requesting JSON output."""
+        """Build a prompt requesting JSON output. Strips descriptions for smaller prompts."""
+        # Strip descriptions from schema to reduce prompt size
+        compact_schema = self._strip_schema_descriptions(schema)
+
         prompt_parts = [
             "You are an expert CV/resume analyzer and writer.",
             "",
             "INSTRUCTION:",
             instruction,
         ]
-        
+
         if context:
             prompt_parts.extend([
                 "",
                 "CONTEXT:",
                 context,
             ])
-        
+
         prompt_parts.extend([
             "",
             "OUTPUT FORMAT:",
-            "You must respond with valid JSON matching this schema:",
+            "Respond with valid JSON matching this schema:",
             "```json",
-            json.dumps(schema, indent=2),
+            json.dumps(compact_schema),
             "```",
             "",
             "Respond ONLY with the JSON object, no additional text.",
         ])
-        
+
         return "\n".join(prompt_parts)
+
+    @staticmethod
+    def _strip_schema_descriptions(schema: dict) -> dict:
+        """Remove description fields from schema to reduce token count."""
+        if isinstance(schema, dict):
+            return {
+                k: LLMClient._strip_schema_descriptions(v)
+                for k, v in schema.items()
+                if k != "description"
+            }
+        elif isinstance(schema, list):
+            return [LLMClient._strip_schema_descriptions(item) for item in schema]
+        return schema
     
     def _parse_response(self, response: str, model: Type[T]) -> T:
         """Parse JSON response into Pydantic model."""
