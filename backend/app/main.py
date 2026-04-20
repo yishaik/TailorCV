@@ -99,6 +99,18 @@ async def debug_pipeline_steps():
             "trace": traceback.format_exc()[-500]
         }
 
+    # Test 5: Direct Gemini call with CVFacts schema (bypass our extractor)
+    from app.models.cv_facts import CVFacts
+    t0 = time.time()
+    try:
+        schema = CVFacts.model_json_schema()
+        results["schema_size"] = {"chars": len(json.dumps(schema))}
+        prompt = f"Extract CV facts as JSON. CV: {test_cv}\n\nSchema: {json.dumps(schema)[:2000]}"
+        resp = await asyncio.wait_for(client.generate_text(prompt), timeout=20)
+        results["direct_cv_call"] = {"status": "ok", "seconds": round(time.time() - t0, 1), "response_len": len(resp)}
+    except Exception as e:
+        results["direct_cv_call"] = {"status": "error", "error": repr(e)[:200], "seconds": round(time.time() - t0, 1)}
+
     return results
 
 
