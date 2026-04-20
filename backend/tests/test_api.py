@@ -19,6 +19,7 @@ from tests.conftest import (
     make_tailored_cv,
     make_match_score,
     make_tailor_request,
+    make_job_requirements,
     JOB_DESCRIPTION,
     CV_TEXT,
 )
