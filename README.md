@@ -54,7 +54,8 @@ Every modification is traceable back to your original experience. The system inc
 |-------|------------|
 | **Frontend** | React 19, TypeScript 5.8, Material UI 7.3, Vite |
 | **Backend** | Python 3.11+, FastAPI 0.109, Pydantic 2.5 |
-| **AI Engine** | Google Gemini API (gemini-3-flash-preview) |
+| **AI Engine** | Google Gemini API (gemini-1.5-flash) |
+| **Testing** | Pytest (backend), Vitest + Testing Library (frontend) |
 | **Document Processing** | PyPDF2, python-docx, fpdf2 |
 | **Containerization** | Docker, Docker Compose |
 
@@ -75,7 +76,7 @@ Every modification is traceable back to your original experience. The system inc
    - `GEMINI_API_KEY`
    - `CORS_ORIGINS` (comma-separated or JSON array)
 3. Keep `VITE_API_URL` unset to use same-origin `/api`, or set it explicitly if needed.
-4. Deploy from `main` (or via the GitHub Actions CD workflow).
+4. Vercel auto-deploys on every push to `master`.
 
 Cloud architecture:
 - Frontend is served from `frontend/dist`.
@@ -142,15 +143,25 @@ docker-compose up --build
 
 ## CI/CD
 
-- **CI** (`.github/workflows/ci.yml`):
-  - Frontend: `npm ci`, `npm run lint`, `npm run build`
-  - Backend: `pip install -r requirements.txt`, compile check, FastAPI import smoke test
-- **CD** (`.github/workflows/cd-vercel.yml`):
-  - Production deploy to Vercel on push to `main` (and manual dispatch)
-  - Required GitHub secrets:
-    - `VERCEL_TOKEN`
-    - `VERCEL_ORG_ID`
-    - `VERCEL_PROJECT_ID`
+- **CI** (`.github/workflows/ci.yml`) runs on every push to `master` and on pull requests:
+  - Frontend: `npm ci`, `npm run lint`, `npm test` (Vitest), `npm run build`
+  - Backend: `pip install -r requirements.txt`, compile check, FastAPI import smoke test, `pytest`
+- **CD**: Vercel's GitHub integration auto-deploys `master` to production — no separate
+  deploy workflow is needed.
+
+---
+
+## Testing
+
+```bash
+# Backend (from backend/)
+pip install -r requirements.txt
+pytest -q
+
+# Frontend (from frontend/)
+npm install
+npm test
+```
 
 ---
 
@@ -343,7 +354,7 @@ TailorCV/
 |----------|----------|---------|-------------|
 | `GEMINI_API_KEY` | Yes | - | Google Gemini API key |
 | `DEBUG` | No | `false` | Enable debug mode |
-| `GEMINI_MODEL` | No | `gemini-3-flash-preview` | Gemini model to use |
+| `GEMINI_MODEL` | No | `gemini-1.5-flash` | Gemini model to use |
 | `CORS_ORIGINS` | No | `http://localhost:5173` | Allowed CORS origins |
 
 ### Frontend Environment
