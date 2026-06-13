@@ -1,7 +1,6 @@
 """
 FastAPI application entry point.
 """
-import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -45,73 +44,6 @@ async def health_check():
         "app": settings.app_name,
         "version": settings.app_version,
     }
-
-
-@app.get("/debug/pipeline-steps")
-async def debug_pipeline_steps():
-    """Debug endpoint — test each Gemini call individually."""
-    import time
-    import traceback
-    from .services.job_extractor import extract_job_requirements
-    from .services.cv_extractor import extract_cv_facts
-    from .utils.llm_client import get_llm_client
-
-    results = {}
-    test_job = "We need a Python developer with 3 years experience building REST APIs."
-    test_cv = "Jane Doe. Software Engineer at Acme Corp. Built REST APIs with Python. Skills: Python, FastAPI, Docker. Education: BSc CS MIT 2019."
-
-    # Test 1: LLM client init
-    t0 = time.time()
-    try:
-        client = get_llm_client()
-        results["llm_client"] = {"status": "ok", "has_key": bool(client.api_key), "model": client.model_name, "seconds": round(time.time() - t0, 1)}
-    except Exception as e:
-        results["llm_client"] = {"status": "error", "error": str(e)}
-
-    # Test 2: Simple Gemini call
-    t0 = time.time()
-    try:
-        resp = await asyncio.wait_for(client.generate_text("Say hello"), timeout=10)
-        results["simple_call"] = {"status": "ok", "response": resp[:100], "seconds": round(time.time() - t0, 1)}
-    except Exception as e:
-        results["simple_call"] = {"status": "error", "error": str(e), "trace": traceback.format_exc()[-300]}
-
-    # Test 3: Extract job
-    t0 = time.time()
-    try:
-        await asyncio.wait_for(extract_job_requirements(test_job), timeout=20)
-        results["extract_job"] = {"status": "ok", "seconds": round(time.time() - t0, 1)}
-    except Exception as e:
-        results["extract_job"] = {"status": "error", "error": str(e), "trace": traceback.format_exc()[-300]}
-
-    # Test 4: Extract CV
-    t0 = time.time()
-    try:
-        await asyncio.wait_for(extract_cv_facts(test_cv), timeout=25)
-        results["extract_cv"] = {"status": "ok", "seconds": round(time.time() - t0, 1)}
-    except asyncio.TimeoutError:
-        results["extract_cv"] = {"status": "error", "error": "TIMEOUT after 25s"}
-    except Exception as e:
-        results["extract_cv"] = {
-            "status": "error",
-            "error": repr(e),
-            "error_type": type(e).__name__,
-            "trace": traceback.format_exc()[-500]
-        }
-
-    # Test 5: Direct Gemini call with CVFacts schema (bypass our extractor)
-    from app.models.cv_facts import CVFacts
-    t0 = time.time()
-    try:
-        schema = CVFacts.model_json_schema()
-        results["schema_size"] = {"chars": len(json.dumps(schema))}
-        prompt = f"Extract CV facts as JSON. CV: {test_cv}\n\nSchema: {json.dumps(schema)[:2000]}"
-        resp = await asyncio.wait_for(client.generate_text(prompt), timeout=20)
-        results["direct_cv_call"] = {"status": "ok", "seconds": round(time.time() - t0, 1), "response_len": len(resp)}
-    except Exception as e:
-        results["direct_cv_call"] = {"status": "error", "error": repr(e)[:200], "seconds": round(time.time() - t0, 1)}
-
-    return results
 
 
 @app.get("/")
