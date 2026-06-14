@@ -30,8 +30,7 @@ import {
   JobDescriptionInput, CVUploader, OptionsPanel, ResultsDisplay, ExportOptions,
 } from './components';
 import {
-  tailorCVWithFileAndProgress,
-  tailorCVWithProgress,
+  tailorCVOrchestrated,
   isApiError,
   type ProgressEvent,
 } from './services/api';
@@ -233,10 +232,9 @@ function App() {
     setProgressComplete(false);
 
     try {
-      let tailorResult: TailorResult;
       const trimmedInstructions = userInstructions.trim();
 
-      // Handle progress updates from SSE
+      // Handle progress updates from each pipeline stage
       const handleProgress = (event: ProgressEvent) => {
         if (event.step !== undefined) {
           setProgressStep(event.step);
@@ -258,35 +256,18 @@ function App() {
         }
       };
 
-      if (cvFile) {
-        tailorResult = await tailorCVWithFileAndProgress(
-          jobDescription,
-          cvFile,
-          handleProgress,
-          {
-            generateCoverLetter,
-            strictnessLevel,
-            outputFormat,
-            userInstructions: trimmedInstructions || undefined,
-          }
-        );
-      } else {
-        // Use SSE streaming for real-time progress updates
-        tailorResult = await tailorCVWithProgress(
-          {
-            job_description: jobDescription,
-            original_cv: cvText,
-            options: {
-              generate_cover_letter: generateCoverLetter,
-              output_format: outputFormat,
-              language: 'en',
-              strictness_level: strictnessLevel,
-              user_instructions: trimmedInstructions || undefined,
-            },
-          },
-          handleProgress
-        );
-      }
+      // Run the pipeline as client-orchestrated steps so no single request
+      // hits the serverless timeout. Progress here is real, per stage.
+      const tailorResult = await tailorCVOrchestrated(
+        jobDescription,
+        cvFile ? { file: cvFile } : { text: cvText },
+        handleProgress,
+        {
+          generateCoverLetter,
+          strictnessLevel,
+          userInstructions: trimmedInstructions || undefined,
+        }
+      );
 
       setResult(tailorResult);
       setProgressComplete(true);

@@ -96,7 +96,7 @@ class TestTailorEndpoint:
                 "original_cv": CV_TEXT,
             })
         assert resp.status_code == 400
-        assert resp.json()["detail"]["error"] == "FABRICATION_DETECTED"
+        assert resp.json()["error"] == "FABRICATION_DETECTED"
 
     async def test_validation_short_job_description(self, client):
         resp = await client.post("/api/tailor", json={
@@ -158,7 +158,7 @@ class TestUploadEndpoints:
             files={"cv_file": ("resume.exe", b"fake content", "application/octet-stream")},
         )
         assert resp.status_code == 400
-        assert resp.json()["detail"]["error"] == "INVALID_FILE_TYPE"
+        assert resp.json()["error"] == "INVALID_FILE_TYPE"
 
     async def test_upload_stream_invalid_file(self, client):
         resp = await client.post(

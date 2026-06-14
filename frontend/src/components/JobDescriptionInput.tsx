@@ -66,14 +66,18 @@ export function JobDescriptionInput({
                 </Typography>
                 <Box>
                     <Tooltip title="Paste from clipboard">
-                        <IconButton onClick={handlePaste} disabled={disabled} sx={{ color: 'primary.main' }}>
-                            <ContentPasteIcon />
-                        </IconButton>
+                        <span>
+                            <IconButton onClick={handlePaste} disabled={disabled} sx={{ color: 'primary.main' }}>
+                                <ContentPasteIcon />
+                            </IconButton>
+                        </span>
                     </Tooltip>
                     <Tooltip title="Clear">
-                        <IconButton onClick={handleClear} disabled={disabled || !value} sx={{ color: 'error.main' }}>
-                            <ClearIcon />
-                        </IconButton>
+                        <span>
+                            <IconButton onClick={handleClear} disabled={disabled || !value} sx={{ color: 'error.main' }}>
+                                <ClearIcon />
+                            </IconButton>
+                        </span>
                     </Tooltip>
                 </Box>
             </Box>

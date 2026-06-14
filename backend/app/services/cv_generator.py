@@ -4,6 +4,7 @@ Module 4: CV Generator
 Produces the tailored CV based on mapping, reorganizing and rewriting
 while maintaining factual accuracy.
 """
+import asyncio
 from typing import Optional
 from ..models.job_requirements import JobRequirements
 from ..models.cv_facts import CVFacts
@@ -266,56 +267,56 @@ class CVGenerator:
         return summary
     
     async def _generate_experience(self) -> list[TailoredExperience]:
-        """Generate tailored experience section."""
-        
+        """Generate tailored experience section.
+
+        Each experience (and each bullet within it) is rewritten via an
+        independent LLM call. These are run concurrently with asyncio.gather
+        so the whole section completes in roughly the time of a single bullet
+        rewrite instead of the sum of them — essential for staying inside the
+        serverless request time limit. gather() preserves ordering, so bullet
+        and experience order are unchanged.
+        """
+
         # Get keywords to integrate
         keywords = (
             self.requirements.ats_keywords.high_priority +
             self.requirements.ats_keywords.medium_priority
         )[:15]
-        
+
         # Get responsibilities for context
         responsibilities = [r.description for r in self.requirements.responsibilities[:5]]
-        
-        tailored_experiences = []
-        
-        for exp in self.cv_facts.experience:
-            tailored_bullets = []
-            
+
+        async def build_bullet(score: int, original: str) -> TailoredExperienceBullet:
+            if self.config.allow_reframing != "minimal" and score < 80:
+                # Try to improve the bullet
+                return await self._rewrite_bullet(original, keywords, responsibilities)
+            return TailoredExperienceBullet(
+                text=original,
+                keywords_used=self._find_keywords_in_text(original, keywords)
+            )
+
+        async def build_experience(exp) -> TailoredExperience:
             # Combine responsibilities and achievements for bullet points
-            all_items = []
-            
-            for resp in exp.responsibilities:
-                all_items.append(resp.original_text)
-            
-            for ach in exp.achievements:
-                all_items.append(ach.original_text)
-            
-            # Score bullets by relevance to job
-            scored_items = []
-            for item in all_items:
-                score = self._score_bullet_relevance(item, keywords)
-                scored_items.append((score, item))
-            
-            # Sort by relevance (most relevant first)
+            all_items = [resp.original_text for resp in exp.responsibilities]
+            all_items += [ach.original_text for ach in exp.achievements]
+
+            # Score bullets by relevance to job, most relevant first
+            scored_items = [
+                (self._score_bullet_relevance(item, keywords), item)
+                for item in all_items
+            ]
             scored_items.sort(reverse=True, key=lambda x: x[0])
-            
-            # Rewrite top bullets if needed
-            for i, (score, original) in enumerate(scored_items[:6]):  # Keep top 6
-                if self.config.allow_reframing != "minimal" and score < 80:
-                    # Try to improve the bullet
-                    rewritten = await self._rewrite_bullet(original, keywords, responsibilities)
-                    tailored_bullets.append(rewritten)
-                else:
-                    tailored_bullets.append(TailoredExperienceBullet(
-                        text=original,
-                        keywords_used=self._find_keywords_in_text(original, keywords)
-                    ))
-            
+
+            # Rewrite the top bullets concurrently
+            tailored_bullets = list(await asyncio.gather(*[
+                build_bullet(score, original)
+                for score, original in scored_items[:6]  # Keep top 6
+            ]))
+
             # Check if order changed
             original_order = [item for _, item in enumerate(all_items[:6])]
             new_order = [b.text for b in tailored_bullets]
-            
+
             if original_order != new_order:
                 self.changes_log.append(ChangeLogEntry(
                     section="experience",
@@ -326,16 +327,18 @@ class CVGenerator:
                     confidence="high",
                     requires_review=False
                 ))
-            
-            tailored_experiences.append(TailoredExperience(
+
+            return TailoredExperience(
                 company=exp.company,
                 title=exp.title,
                 dates=f"{exp.start_date} - {exp.end_date}",
                 location=exp.location,
                 bullets=tailored_bullets
-            ))
-        
-        return tailored_experiences
+            )
+
+        return list(await asyncio.gather(*[
+            build_experience(exp) for exp in self.cv_facts.experience
+        ]))
     
     def _score_bullet_relevance(self, text: str, keywords: list[str]) -> int:
         """Score a bullet's relevance to the job."""

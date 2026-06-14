@@ -53,7 +53,7 @@ Every modification is traceable back to your original experience. The system inc
 | Layer | Technology |
 |-------|------------|
 | **Frontend** | React 19, TypeScript 5.8, Material UI 7.3, Vite |
-| **Backend** | Python 3.11+, FastAPI 0.109, Pydantic 2.5 |
+| **Backend** | Python 3.12, FastAPI 0.109, Pydantic 2.5 |
 | **AI Engine** | Google Gemini API (gemini-3.1-pro-preview) |
 | **Testing** | Pytest (backend), Vitest + Testing Library (frontend) |
 | **Document Processing** | PyPDF2, python-docx, fpdf2 |
@@ -65,7 +65,7 @@ Every modification is traceable back to your original experience. The system inc
 
 ### Prerequisites
 
-- Python 3.11 or higher
+- Python 3.12
 - Node.js 18 or higher
 - Google Gemini API key ([Get one here](https://makersuite.google.com/app/apikey))
 
@@ -81,6 +81,7 @@ Every modification is traceable back to your original experience. The system inc
 Cloud architecture:
 - Frontend is served from `frontend/dist`.
 - API routes are handled by the FastAPI serverless entrypoint at `api/index.py`.
+- Python runtime is pinned with `.python-version` so CI, Docker, and Vercel stay aligned.
 
 ### Option 2: Local Development
 
@@ -145,8 +146,8 @@ docker-compose up --build
 
 - **CI** (`.github/workflows/ci.yml`) runs on every push to `master` and on pull requests:
   - Frontend: `npm ci`, `npm run lint`, `npm test` (Vitest), `npm run build`
-  - Backend: `pip install -r requirements.txt`, compile check, FastAPI import smoke test, `pytest`
-- **CD**: Vercel's GitHub integration auto-deploys `master` to production — no separate
+  - Backend: `pip install -r requirements.txt`, compile check, FastAPI import smoke test, Vercel adapter smoke test, `pytest`
+- **CD**: Vercel's GitHub integration auto-deploys `master` to production - no separate
   deploy workflow is needed.
 
 ---
@@ -370,8 +371,15 @@ TailorCV/
 ### Running Tests
 
 ```bash
-# There are no automated tests in this repo yet.
-# If you add tests, document the runner here.
+# Backend
+cd backend
+pip install -r requirements.txt
+pytest -q
+
+# Frontend
+cd frontend
+npm ci
+npm test
 ```
 
 ### Code Formatting
@@ -406,6 +414,7 @@ This repo includes a `vercel.json` that deploys the FastAPI backend as a serverl
 Notes:
 - The frontend build uses `frontend/.env.production` to call the API at `/api` on the same domain.
 - The API docs are available at `/docs` on the deployed site.
+- Vercel uses `npm --prefix frontend ci`, so deployment installs match `frontend/package-lock.json`.
 
 ---
 

@@ -9,7 +9,7 @@ on:
 
 jobs:
   frontend:
-    name: Frontend Lint & Build
+    name: Frontend Validation
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -50,7 +50,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version-file: .python-version
           cache: pip
           cache-dependency-path: backend/requirements.txt
 
@@ -62,6 +62,10 @@ jobs:
 
       - name: FastAPI import smoke test
         run: python -c "from app.main import app; print(app.title)"
+
+      - name: Vercel adapter smoke test
+        working-directory: .
+        run: python -c "from api.index import app; print(app.title)"
 
       - name: Run tests
         run: python -m pytest tests/ -v --tb=short

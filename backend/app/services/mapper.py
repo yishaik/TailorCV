@@ -3,6 +3,7 @@ Module 3: Requirements-to-Evidence Mapper
 
 Creates explicit mapping between job requirements and CV evidence.
 """
+import asyncio
 from typing import Optional
 from ..models.job_requirements import JobRequirements, Requirement, RequirementCategory
 from ..models.cv_facts import CVFacts
@@ -45,19 +46,20 @@ async def map_requirements_to_evidence(
         Complete mapping result with scores
     """
     config = STRICTNESS_CONFIGS.get(strictness, STRICTNESS_CONFIGS["moderate"])
-    
-    mapping_table = []
-    
-    # Process must-have requirements
-    for req in requirements.must_have:
-        entry = await _create_mapping_entry(req, "must_have", cv_facts, config)
-        mapping_table.append(entry)
-    
-    # Process nice-to-have requirements
-    for req in requirements.nice_to_have:
-        entry = await _create_mapping_entry(req, "nice_to_have", cv_facts, config)
-        mapping_table.append(entry)
-    
+
+    # Build all mapping entries concurrently. Each entry is independent (no
+    # shared state), so gather() preserves order while overlapping the LLM
+    # calls in _find_transferable_evidence — keeping this step well under the
+    # serverless time limit even with many requirements.
+    tasks = [
+        _create_mapping_entry(req, "must_have", cv_facts, config)
+        for req in requirements.must_have
+    ] + [
+        _create_mapping_entry(req, "nice_to_have", cv_facts, config)
+        for req in requirements.nice_to_have
+    ]
+    mapping_table = list(await asyncio.gather(*tasks))
+
     # Calculate overall match
     overall_match = _calculate_overall_match(mapping_table, requirements)
     

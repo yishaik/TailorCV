@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from typing import Optional, AsyncGenerator
 import json
 import logging
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from ..config import get_settings
 from ..models.options import (
@@ -16,12 +16,24 @@ from ..models.options import (
     ExtractCVRequest,
     ApiKeyRequest,
 )
-from ..models.output import TailorResult
+from ..models.output import (
+    TailorResult,
+    TailoredCV,
+    CoverLetter,
+    ChangeLogEntry,
+    BorderlineItem,
+    MatchScore,
+)
 from ..models.job_requirements import JobRequirements
 from ..models.cv_facts import CVFacts
+from ..models.mapping import MappingResult
 
 from ..services.job_extractor import extract_job_requirements
 from ..services.cv_extractor import extract_cv_facts
+from ..services.mapper import map_requirements_to_evidence
+from ..services.cv_generator import generate_tailored_cv
+from ..services.cover_letter import generate_cover_letter
+from ..services.qa_guardrails import run_quality_checks
 from ..services.tailoring_pipeline import run_tailoring_pipeline, TailoringError
 
 from ..utils.document_parser import extract_text, clean_extracted_text
@@ -65,6 +77,57 @@ def _sse_headers() -> dict:
         "Connection": "keep-alive",
         "X-Accel-Buffering": "no",
     }
+
+
+def _build_mapping_summary(mapping: MappingResult) -> dict:
+    """Build the mapping summary attached to a tailor result."""
+    return {
+        "overall_score": mapping.overall_match.score,
+        "must_have_coverage": mapping.overall_match.must_have_coverage,
+        "nice_to_have_coverage": mapping.overall_match.nice_to_have_coverage,
+        "strongest_matches": mapping.overall_match.strongest_matches,
+        "critical_gaps": mapping.overall_match.critical_gaps,
+        "keywords_present": mapping.keyword_coverage.present_in_cv,
+        "keywords_missing": mapping.keyword_coverage.genuinely_missing,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Step request/response models
+#
+# These power the client-orchestrated flow: the frontend calls one endpoint per
+# pipeline stage so no single request approaches the serverless time limit.
+# ---------------------------------------------------------------------------
+
+class MapStepRequest(BaseModel):
+    requirements: JobRequirements
+    cv_facts: CVFacts
+    strictness_level: str = "moderate"
+
+
+class GenerateCVStepRequest(BaseModel):
+    requirements: JobRequirements
+    cv_facts: CVFacts
+    mapping: MappingResult
+    strictness_level: str = "moderate"
+    user_instructions: Optional[str] = None
+
+
+class GenerateCVStepResponse(BaseModel):
+    tailored_cv: TailoredCV
+    changes_log: list[ChangeLogEntry]
+    borderline_items: list[BorderlineItem]
+    match_score: MatchScore
+    mapping_summary: dict
+    warnings: list[str] = Field(default_factory=list)
+
+
+class CoverLetterStepRequest(BaseModel):
+    requirements: JobRequirements
+    cv_facts: CVFacts
+    mapping: MappingResult
+    strictness_level: str = "moderate"
+    user_instructions: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -234,6 +297,114 @@ async def tailor_cv_with_upload(
     )
 
     return await run_tailoring_pipeline(tailor_req)
+
+
+# ---------------------------------------------------------------------------
+# Client-orchestrated step endpoints
+#
+# The frontend drives the pipeline one stage at a time so each HTTP request
+# stays well under the serverless time limit. /extract-job and /extract-cv
+# (below) are the first two stages; these cover mapping, generation and the
+# cover letter.
+# ---------------------------------------------------------------------------
+
+@router.post("/parse-file")
+@limiter.limit("20/minute")
+async def parse_file(request: Request, cv_file: UploadFile = File(...)):
+    """Parse an uploaded CV file to plain text (stage 0 for file uploads)."""
+    _validate_file(cv_file.filename)
+    try:
+        content = await cv_file.read()
+        cv_text = clean_extracted_text(extract_text(content, cv_file.filename or "upload.txt"))
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "PARSE_FAILURE", "message": f"Could not extract text from file: {e}"},
+        )
+    return {"cv_text": cv_text}
+
+
+@router.post("/map", response_model=MappingResult)
+@limiter.limit("20/minute")
+async def map_step(request: Request, body: MapStepRequest):
+    """Map job requirements to CV evidence (stage 3)."""
+    try:
+        return await map_requirements_to_evidence(
+            body.requirements, body.cv_facts, body.strictness_level
+        )
+    except Exception as e:
+        logger.exception("Failed to map requirements to evidence")
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "PROCESSING_ERROR", "message": str(e)},
+        )
+
+
+@router.post("/generate-cv", response_model=GenerateCVStepResponse)
+@limiter.limit("10/minute")
+async def generate_cv_step(request: Request, body: GenerateCVStepRequest):
+    """Generate the tailored CV and run quality checks (stages 4+5)."""
+    try:
+        tailored_cv, changes_log, borderline_items = await generate_tailored_cv(
+            body.requirements,
+            body.cv_facts,
+            body.mapping,
+            body.strictness_level,
+            body.user_instructions,
+        )
+    except Exception as e:
+        logger.exception("Failed to generate tailored CV")
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "PROCESSING_ERROR", "message": str(e)},
+        )
+
+    is_valid, errors, warnings, match_score = run_quality_checks(
+        body.cv_facts,
+        tailored_cv,
+        body.mapping,
+        changes_log,
+        borderline_items,
+    )
+
+    if not is_valid:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "FABRICATION_DETECTED",
+                "message": "Quality checks detected potential fabrication",
+                "details": errors,
+            },
+        )
+
+    return GenerateCVStepResponse(
+        tailored_cv=tailored_cv,
+        changes_log=changes_log,
+        borderline_items=borderline_items,
+        match_score=match_score,
+        mapping_summary=_build_mapping_summary(body.mapping),
+        warnings=warnings,
+    )
+
+
+@router.post("/cover-letter", response_model=CoverLetter)
+@limiter.limit("10/minute")
+async def cover_letter_step(request: Request, body: CoverLetterStepRequest):
+    """Generate a cover letter (stage 6)."""
+    try:
+        return await generate_cover_letter(
+            body.requirements,
+            body.cv_facts,
+            body.mapping,
+            body.strictness_level,
+            body.user_instructions,
+        )
+    except Exception as e:
+        logger.exception("Failed to generate cover letter")
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "PROCESSING_ERROR", "message": str(e)},
+        )
 
 
 @router.post("/extract-job", response_model=JobRequirements)

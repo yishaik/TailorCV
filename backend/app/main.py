@@ -1,8 +1,10 @@
 """
 FastAPI application entry point.
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -21,6 +23,22 @@ app = FastAPI(
 # Rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Surface structured error details at the top level of the response body.
+
+    Routes raise HTTPException(detail={"error": ..., "message": ..., "details": ...}).
+    FastAPI's default nests that under a "detail" key, but the frontend expects
+    {error, message, details} at the top level, so flatten it here.
+    """
+    if isinstance(exc.detail, dict):
+        return JSONResponse(status_code=exc.status_code, content=exc.detail)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": "HTTP_ERROR", "message": str(exc.detail)},
+    )
 
 # Configure CORS
 app.add_middleware(
