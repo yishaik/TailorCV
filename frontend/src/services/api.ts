@@ -275,5 +275,8 @@ export async function tailorCVOrchestrated(
         borderline_items: generated.borderline_items,
         match_score: generated.match_score,
         mapping_summary: generated.mapping_summary,
+        job_title: requirements.job_title,
+        // /map returns the full MappingResult; surface it for the Analysis tab.
+        mapping_detail: mapping as TailorResult['mapping_detail'],
     };
 }

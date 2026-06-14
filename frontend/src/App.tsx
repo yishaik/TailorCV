@@ -35,6 +35,7 @@ import {
   type ProgressEvent,
 } from './services/api';
 import type { TailorResult, StrictnessLevel, OutputFormat } from './types';
+import { extractApplyTargets } from './utils/apply';
 
 // Dark theme with purple accent
 const theme = createTheme({
@@ -430,7 +431,14 @@ function App() {
             </Typography>
 
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' }, gap: 3 }}>
-              <ResultsDisplay result={result} />
+              <ResultsDisplay
+                result={result}
+                onChange={setResult}
+                applyTargets={extractApplyTargets(
+                  jobDescription,
+                  Object.values(result.tailored_cv.header.contact),
+                )}
+              />
               <Box>
                 <ExportOptions result={result} />
               </Box>

@@ -20,6 +20,16 @@ interface ExportOptionsProps {
     result: TailorResult;
 }
 
+/** Build a download filename like "John Doe - Senior Backend Engineer.pdf". */
+function buildFileName(result: TailorResult, ext: string): string {
+    const name = result.tailored_cv.header.name?.trim();
+    const position = (result.job_title || result.tailored_cv.header.title)?.trim();
+    const base = [name, position].filter(Boolean).join(' - ') || 'tailored_cv';
+    // Strip characters that are illegal in filenames across OSes.
+    const safe = base.replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim();
+    return `${safe}.${ext}`;
+}
+
 export function ExportOptions({ result }: ExportOptionsProps) {
     const [exporting, setExporting] = React.useState<string | null>(null);
     const [copied, setCopied] = React.useState(false);
@@ -108,7 +118,7 @@ export function ExportOptions({ result }: ExportOptionsProps) {
 
             const opt = {
                 margin: 10,
-                filename: 'tailored_cv.pdf',
+                filename: buildFileName(result, 'pdf'),
                 image: { type: 'jpeg' as const, quality: 0.98 },
                 html2canvas: { scale: 2, useCORS: true },
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
@@ -137,7 +147,7 @@ export function ExportOptions({ result }: ExportOptionsProps) {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `tailored_cv.${format === 'markdown' ? 'md' : format}`;
+            a.download = buildFileName(result, format === 'markdown' ? 'md' : format);
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);

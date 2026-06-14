@@ -9,7 +9,7 @@ describe('ResultsDisplay', () => {
   test('renders real result data across tabs', async () => {
     const user = userEvent.setup();
 
-    render(<ResultsDisplay result={sampleResult} />);
+    render(<ResultsDisplay result={sampleResult} onChange={() => {}} />);
 
     expect(screen.getByText(/Match Score/i)).toBeInTheDocument();
     expect(screen.getByText(/Alex Taylor/i)).toBeInTheDocument();
@@ -18,7 +18,7 @@ describe('ResultsDisplay', () => {
     expect(screen.getByText(/I am applying for the Senior Backend Engineer role/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('tab', { name: /Analysis/i }));
-    expect(screen.getByText(/Keyword Analysis/i)).toBeInTheDocument();
+    expect(screen.getByText(/ATS Keyword Coverage/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('tab', { name: /Changes/i }));
     expect(screen.getByText(/All Changes/i)).toBeInTheDocument();

@@ -199,6 +199,61 @@ export interface MatchScore {
     explanation: string;
 }
 
+// Detailed requirement-to-evidence mapping (powers the richer Analysis tab).
+export interface EvidenceItem {
+    source_type: 'experience' | 'skill' | 'project' | 'certification' | 'education';
+    source_id: string;
+    original_text: string;
+    relevance_score: number;
+    match_type: 'direct' | 'transferable' | 'partial' | 'learning';
+}
+
+export interface MitigationOption {
+    strategy: 'reframe_existing' | 'highlight_learning' | 'show_adjacent' | 'acknowledge_gap';
+    suggestion: string;
+    requires_user_confirmation: boolean;
+}
+
+export interface GapAnalysis {
+    has_gap: boolean;
+    gap_severity: 'critical' | 'moderate' | 'minor' | 'none';
+    mitigation_options: MitigationOption[];
+}
+
+export interface MappingEntry {
+    requirement: {
+        text: string;
+        priority: 'must_have' | 'nice_to_have' | 'inferred';
+        category: string;
+    };
+    evidence: EvidenceItem[];
+    gap_analysis: GapAnalysis;
+}
+
+export interface MappingDetail {
+    mapping_table: MappingEntry[];
+    overall_match: {
+        score: number;
+        must_have_coverage: string;
+        nice_to_have_coverage: string;
+        strongest_matches: string[];
+        critical_gaps: string[];
+    };
+    keyword_coverage: {
+        present_in_cv: string[];
+        missing_but_addressable: string[];
+        genuinely_missing: string[];
+    };
+}
+
+// A place to apply for the job, parsed out of the job description.
+export interface ApplyTarget {
+    type: 'email' | 'url';
+    value: string;
+    href: string;
+    label: string;
+}
+
 export interface TailorResult {
     tailored_cv: TailoredCV;
     cover_letter: CoverLetter | null;
@@ -214,6 +269,11 @@ export interface TailorResult {
         keywords_present: string[];
         keywords_missing: string[];
     } | null;
+    // The role being applied to (used for export filenames). Optional so older
+    // payloads and the backend Pydantic model stay compatible.
+    job_title?: string | null;
+    // Full mapping detail for the Analysis tab. Optional for the same reason.
+    mapping_detail?: MappingDetail | null;
 }
 
 export interface ApiError {
