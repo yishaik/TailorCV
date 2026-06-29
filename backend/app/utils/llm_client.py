@@ -6,8 +6,10 @@ import google.generativeai as genai
 from typing import Type, TypeVar, Optional
 from pydantic import BaseModel
 import logging
+from functools import lru_cache
 
 from ..config import get_settings
+from .prompt_security import PROMPT_SECURITY_PREAMBLE
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +87,8 @@ class LLMClient:
         compact_schema = self._strip_schema_descriptions(schema)
 
         prompt_parts = [
+            PROMPT_SECURITY_PREAMBLE,
+            "",
             "You are an expert CV/resume analyzer and writer.",
             "",
             "INSTRUCTION:",
@@ -144,26 +148,14 @@ class LLMClient:
     
     async def generate_text(self, prompt: str, context: Optional[str] = None) -> str:
         """Generate free-form text response."""
-        full_prompt = prompt
+        full_prompt = f"{PROMPT_SECURITY_PREAMBLE}\n\n{prompt}"
         if context:
-            full_prompt = f"{prompt}\n\nContext:\n{context}"
+            full_prompt = f"{full_prompt}\n\nContext:\n{context}"
         
         return await self._generate(full_prompt)
 
 
-# Global client instance
-_client: Optional[LLMClient] = None
-
-
+@lru_cache(maxsize=1)
 def get_llm_client() -> LLMClient:
-    """Get the global LLM client instance."""
-    global _client
-    if _client is None:
-        _client = LLMClient()
-    return _client
-
-
-def set_llm_api_key(api_key: str):
-    """Set API key for the LLM client."""
-    global _client
-    _client = LLMClient(api_key=api_key)
+    """Get the configured LLM client."""
+    return LLMClient()

@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#0d0b14" />
+<title>📘 המדריך המלא ל-TailorCV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800&family=Rubik:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0910; --bg2:#0d0b14; --surface:#16131f; --surface2:#1d1830; --surface3:#251f3a;
+    --primary:#7c4dff; --primary-light:#b47cff; --grad:linear-gradient(135deg,#7c4dff 0%,#b47cff 100%);
+    --text:#eceaf6; --muted:#a59fbd; --faint:#6f6986; --border:rgba(255,255,255,.08);
+    --good:#4ade80; --bad:#fbbf24; --ugly:#f87171; --info:#60a5fa;
+    --radius:18px; --maxw:920px; --nav-w:300px;
+    --shadow:0 10px 40px rgba(0,0,0,.45);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:radial-gradient(1200px 600px at 80% -10%, #1a1430 0%, var(--bg) 55%) fixed, var(--bg);
+    color:var(--text); font-family:'Heebo',system-ui,sans-serif; line-height:1.75;
+    font-size:clamp(15px,2.6vw,17px); -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  }
+  /* ---------- top bar ---------- */
+  header.bar{
+    position:sticky; top:0; z-index:50; display:flex; align-items:center; gap:12px;
+    padding:calc(env(safe-area-inset-top) + 10px) 16px 10px; backdrop-filter:blur(14px);
+    background:rgba(10,9,16,.82); border-bottom:1px solid var(--border);
+  }
+  .bar h1{font:800 clamp(15px,4vw,19px)/1.2 'Rubik'; margin:0; letter-spacing:.2px; flex:1}
+  .bar .logo{width:30px;height:30px;border-radius:9px;background:var(--grad);display:grid;place-items:center;font-size:16px;flex:none;box-shadow:0 4px 14px rgba(124,77,255,.45)}
+  .menu-btn{width:42px;height:42px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:12px;font-size:20px;display:grid;place-items:center;cursor:pointer}
+  .menu-btn:active{transform:scale(.94)}
+  /* ---------- progress reading bar ---------- */
+  #progress{position:fixed;top:0;right:0;height:3px;background:var(--grad);width:0;z-index:60;transition:width .1s linear}
+  /* ---------- layout ---------- */
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:22px 18px 120px}
+  /* ---------- nav drawer ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;visibility:hidden;transition:.25s;z-index:70}
+  .scrim.open{opacity:1;visibility:visible}
+  nav.drawer{
+    position:fixed;top:0;right:0;height:100%;width:var(--nav-w);max-width:84vw;z-index:80;
+    background:var(--surface);border-left:1px solid var(--border);transform:translateX(100%);
+    transition:transform .28s cubic-bezier(.4,0,.2,1);overflow-y:auto;padding:18px 0 40px;box-shadow:var(--shadow)
+  }
+  nav.drawer.open{transform:translateX(0)}
+  nav .nhead{padding:14px 20px;font:700 13px 'Rubik';color:var(--muted);letter-spacing:1px;text-transform:uppercase}
+  nav a{display:block;color:var(--text);text-decoration:none;padding:11px 20px;font-size:15px;border-right:3px solid transparent;transition:.15s}
+  nav a:hover{background:var(--surface2)}
+  nav a.active{background:var(--surface2);border-right-color:var(--primary);color:var(--primary-light);font-weight:700}
+  nav a .n{color:var(--faint);font-size:12px;margin-left:8px}
+  /* ---------- hero ---------- */
+  .hero{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:30px 22px;margin-bottom:26px;position:relative;overflow:hidden}
+  .hero::before{content:"";position:absolute;inset:0;background:radial-gradient(400px 200px at 90% 0%,rgba(124,77,255,.22),transparent 70%)}
+  .hero h2{font:900 clamp(24px,7vw,38px)/1.1 'Rubik';margin:0 0 12px;position:relative}
+  .hero p{color:var(--muted);margin:0;position:relative;font-size:clamp(14px,3.4vw,17px)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;position:relative}
+  .chip{background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:5px 13px;font-size:12.5px;color:var(--muted);font-weight:500}
+  .chip b{color:var(--primary-light)}
+  /* ---------- sections ---------- */
+  section{margin:34px 0;scroll-margin-top:80px}
+  h2.sec{font:800 clamp(20px,5vw,27px)/1.25 'Rubik';margin:0 0 6px;padding-top:8px;display:flex;gap:10px;align-items:baseline}
+  h2.sec .num{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;font-size:.9em;font-weight:900}
+  h3{font:700 clamp(17px,4.2vw,21px) 'Rubik';margin:26px 0 10px;color:#fff}
+  p{margin:12px 0}
+  a{color:var(--primary-light)}
+  .lead{color:var(--muted)}
+  ul,ol{padding-right:22px;margin:12px 0}
+  li{margin:7px 0}
+  code{background:var(--surface2);padding:2px 7px;border-radius:7px;font-size:.86em;font-family:'JetBrains Mono',ui-monospace,'Cascadia Code',monospace;color:#d9c9ff;direction:ltr;display:inline-block}
+  /* ---------- callouts ---------- */
+  .note{border-radius:14px;padding:14px 16px;margin:18px 0;border:1px solid var(--border);background:var(--surface);position:relative;padding-right:48px}
+  .note::before{position:absolute;right:16px;top:13px;font-size:20px}
+  .note.key{background:linear-gradient(135deg,rgba(124,77,255,.16),rgba(124,77,255,.05));border-color:rgba(124,77,255,.4)}
+  .note.key::before{content:"🔒"}
+  .note.tip{background:rgba(96,165,250,.08);border-color:rgba(96,165,250,.3)}
+  .note.tip::before{content:"💡"}
+  .note.warn{background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.32)}
+  .note.warn::before{content:"⚠️"}
+  /* ---------- cards ---------- */
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin:16px 0;box-shadow:var(--shadow)}
+  .grid{display:grid;gap:14px}
+  @media(min-width:640px){.grid.two{grid-template-columns:1fr 1fr}.grid.three{grid-template-columns:1fr 1fr 1fr}}
+  .gbu{border-radius:16px;padding:18px;border:1px solid var(--border)}
+  .gbu h3{margin:0 0 10px;display:flex;gap:8px;align-items:center;font-size:18px}
+  .gbu.good{background:rgba(74,222,128,.07);border-color:rgba(74,222,128,.3)}
+  .gbu.good h3{color:var(--good)}
+  .gbu.bad{background:rgba(251,191,36,.07);border-color:rgba(251,191,36,.3)}
+  .gbu.bad h3{color:var(--bad)}
+  .gbu.ugly{background:rgba(248,113,113,.07);border-color:rgba(248,113,113,.32)}
+  .gbu.ugly h3{color:var(--ugly)}
+  .gbu ul{padding-right:20px;margin:0}
+  .gbu li{font-size:14.5px;color:var(--text)}
+  .miss{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px}
+  .miss h3{margin:0 0 8px;font-size:16px;color:var(--primary-light);display:flex;gap:8px;align-items:center}
+  .miss ul{margin:0;padding-right:18px}.miss li{font-size:14px;color:var(--muted)}
+  /* ---------- tables ---------- */
+  .tw{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:16px 0;border:1px solid var(--border);border-radius:14px}
+  table{border-collapse:collapse;width:100%;min-width:480px;font-size:14px}
+  th,td{padding:11px 13px;text-align:right;border-bottom:1px solid var(--border);vertical-align:top}
+  th{background:var(--surface2);font:700 13.5px 'Rubik';color:#fff;position:sticky;top:0}
+  tr:last-child td{border-bottom:0}
+  tbody tr:nth-child(even){background:rgba(255,255,255,.018)}
+  td b,td strong{color:var(--primary-light)}
+  /* ---------- diagrams ---------- */
+  .diagram{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin:18px 0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .diagram .mermaid{min-width:fit-content;display:flex;justify-content:center}
+  .dcap{color:var(--faint);font-size:13px;text-align:center;margin-top:4px}
+  /* ---------- screenshots ---------- */
+  figure.shot{margin:18px 0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+  figure.shot img{width:100%;display:block;cursor:zoom-in;transition:.2s}
+  figure.shot figcaption{padding:11px 15px;color:var(--muted);font-size:13.5px;border-top:1px solid var(--border)}
+  .gallery{display:grid;gap:14px}
+  @media(min-width:680px){.gallery.two{grid-template-columns:1fr 1fr}}
+  /* ---------- lightbox ---------- */
+  .lb{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.92);display:none;place-items:center;padding:18px;cursor:zoom-out}
+  .lb.open{display:grid}
+  .lb img{max-width:100%;max-height:92vh;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.7)}
+  /* ---------- pipeline pills ---------- */
+  .pipe{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0}
+  .pp{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:9px 13px;font-size:13.5px;font-weight:500}
+  .pp b{color:var(--primary-light)}
+  .arr{color:var(--faint)}
+  /* ---------- back to top ---------- */
+  #top{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 18px);left:18px;width:48px;height:48px;border-radius:50%;background:var(--grad);color:#fff;border:0;font-size:22px;display:grid;place-items:center;box-shadow:0 8px 24px rgba(124,77,255,.5);opacity:0;visibility:hidden;transition:.25s;cursor:pointer;z-index:40}
+  #top.show{opacity:1;visibility:visible}
+  footer{text-align:center;color:var(--faint);font-size:13px;padding:30px 18px;border-top:1px solid var(--border);margin-top:40px}
+  hr{border:0;border-top:1px solid var(--border);margin:30px 0}
+  .toc-inline{columns:1;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:6px 4px}
+  .toc-inline a{display:block;padding:9px 16px;color:var(--text);text-decoration:none;border-radius:10px;font-size:15px}
+  .toc-inline a:hover{background:var(--surface2);color:var(--primary-light)}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<header class="bar">
+  <div class="logo">📘</div>
+  <h1>המדריך המלא ל-TailorCV</h1>
+  <button class="menu-btn" id="menuBtn" aria-label="תפריט">☰</button>
+</header>
+
+<div class="scrim" id="scrim"></div>
+<nav class="drawer" id="drawer">
+  <div class="nhead">תוכן עניינים</div>
+  <a href="#s1"><span class="n">1</span> מה זה TailorCV</a>
+  <a href="#s2"><span class="n">2</span> החלטות המוצר</a>
+  <a href="#s3"><span class="n">3</span> ארכיטקטורה</a>
+  <a href="#s4"><span class="n">4</span> זרימת המשתמש + מסכים</a>
+  <a href="#s5"><span class="n">5</span> ה-Backend</a>
+  <a href="#s6"><span class="n">6</span> Guardrails</a>
+  <a href="#s7"><span class="n">7</span> ה-Frontend</a>
+  <a href="#s8"><span class="n">8</span> תזמור בצד הלקוח</a>
+  <a href="#s9"><span class="n">9</span> פריסה (Deployment)</a>
+  <a href="#s10"><span class="n">10</span> בדיקות</a>
+  <a href="#s11"><span class="n">11</span> הטוב, הרע והמכוער</a>
+  <a href="#s12"><span class="n">12</span> מה חסר</a>
+  <a href="#s13"><span class="n">13</span> סיכום והמלצות</a>
+</nav>
+
+<div class="wrap">
+
+  <div class="hero">
+    <h2>📘 המדריך המלא ל-TailorCV</h2>
+    <p>כל הפרויקט בעברית פשוטה — מההחלטות המוצריות, דרך הקוד והארכיטקטורה, ועד הפריסה. כולל תרשימים אינטראקטיביים, צילומי מסך חיים מהאתר, וסקירה כנה של <b>הטוב, הרע והמכוער</b>.</p>
+    <div class="chips">
+      <span class="chip">⚛️ <b>React 19</b></span>
+      <span class="chip">🐍 <b>FastAPI</b></span>
+      <span class="chip">🤖 <b>Gemini</b></span>
+      <span class="chip">☁️ <b>Vercel</b></span>
+      <span class="chip">📱 מותאם למובייל</span>
+    </div>
+  </div>
+
+  <!-- ===== 1 ===== -->
+  <section id="s1">
+    <h2 class="sec"><span class="num">1.</span> מה זה TailorCV ולמה הוא קיים</h2>
+    <p><b>TailorCV</b> הוא מערכת מבוססת בינה מלאכותית שמתאימה (מ"תופרת", Tailor) קורות חיים למשרה ספציפית. מדביקים <b>תיאור משרה</b> + <b>קורות החיים שלך</b>, והמערכת מייצרת גרסה מותאמת שמדגישה בדיוק את מה שהמשרה מחפשת — בלי לשקר.</p>
+    <div class="tw"><table>
+      <thead><tr><th>בלי TailorCV</th><th>עם TailorCV</th></tr></thead>
+      <tbody>
+        <tr><td>שולחים את אותם קו״ח לכל משרה</td><td>כל משרה מקבלת גרסה מותאמת</td></tr>
+        <tr><td>מילות מפתח של המשרה (ATS) חסרות</td><td>מילות המפתח משולבות באופן טבעי</td></tr>
+        <tr><td>הניסוח לא מדבר בשפת המשרה</td><td>ההישגים מנוסחים מחדש בשפה רלוונטית</td></tr>
+        <tr><td>קל "להמציא" כדי להיראות טוב</td><td>המערכת <b>חוסמת</b> המצאות אוטומטית</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note key"><b>העיקרון המקודש:</b> המערכת לעולם לא ממציאה ניסיון. היא רק <b>מארגנת מחדש, מנסחת מחדש ומדגישה</b> עובדות שכבר קיימות בקו״ח המקוריים. ההבטחה הזו נאכפת גם דרך ההנחיות ל-AI וגם דרך שכבת בדיקות (Guardrails).</div>
+  </section>
+
+  <!-- ===== 2 ===== -->
+  <section id="s2">
+    <h2 class="sec"><span class="num">2.</span> החלטות המוצר — הפילוסופיה</h2>
+    <h3>שלוש רמות מחמירוּת (Strictness)</h3>
+    <p>המשתמש בוחר כמה "אגרסיבית" תהיה ההתאמה — החלטת מוצר מרכזית:</p>
+    <div class="tw"><table>
+      <thead><tr><th>רמה</th><th>כישורים מוסקים</th><th>ניסוח מחדש</th><th>מילות מפתח</th><th>מתאים ל...</th></tr></thead>
+      <tbody>
+        <tr><td><b>Conservative</b></td><td>❌ לא</td><td>מינימלי</td><td>רק עם הוכחה</td><td>תחומים מפוקחים</td></tr>
+        <tr><td><b>Moderate</b></td><td>✅ כן</td><td>מאוזן</td><td>שילוב טבעי</td><td>רוב המקרים (ברירת מחדל)</td></tr>
+        <tr><td><b>Aggressive</b></td><td>✅ כן</td><td>נרחב</td><td>מקסימום</td><td>שליחה בכמויות</td></tr>
+      </tbody>
+    </table></div>
+    <p>ההגדרות מוגדרות כ-<code>STRICTNESS_CONFIGS</code> ושולטות בארבעה "כפתורים" פנימיים: כישורים מוסקים, ניסוח מחדש, עוצמת הזרקת מילות מפתח, ועד כמה לגשר על פערים.</p>
+    <h3>מה המשתמש מקבל בסוף</h3>
+    <ol>
+      <li><b>קורות חיים מותאמים</b> — מאורגנים ומנוסחים מחדש.</li>
+      <li><b>ניתוח התאמה</b> — ציון 0–100 + פירוט פערים.</li>
+      <li><b>יומן שינויים</b> — כל שינוי עם הסבר למה.</li>
+      <li><b>פריטים גבוליים</b> — שינויים שכדאי לבדוק לפני שליחה.</li>
+      <li><b>מכתב מקדים</b> — אופציונלי.</li>
+      <li><b>ייצוא</b> — Markdown, Word או PDF.</li>
+    </ol>
+    <h3>החלטות מוצר נוספות</h3>
+    <ul>
+      <li><b>אין חשבונות / אין שמירת מידע</b> — כל בקשה חד-פעמית (stateless). פשוט ופרטי, אבל אין היסטוריה.</li>
+      <li><b>טמפרטורה נמוכה (0.1)</b> ל-AI — פלט יציב וצפוי, לא "יצירתי" מדי (מסוכן כשמדברים על עובדות).</li>
+      <li><b>קישורי הגשה (Apply links)</b> — סריקת תיאור המשרה לאיתור אימיילים/קישורים, עם סינון פרטי הקשר של המועמד עצמו.</li>
+    </ul>
+  </section>
+
+  <!-- ===== 3 ===== -->
+  <section id="s3">
+    <h2 class="sec"><span class="num">3.</span> מבט-על על הארכיטקטורה</h2>
+    <p>שלושה שחקנים: הדפדפן (React), שרת ה-API (FastAPI), ומנוע ה-AI (Google Gemini).</p>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+    User([👤 המשתמש])
+    subgraph Browser["🖥️ דפדפן — React + MUI"]
+        UI[אשף 3 שלבים]
+        Orch[מתזמר הצנרת]
+    end
+    subgraph Vercel["☁️ Vercel"]
+        Static[קבצים סטטיים]
+        API[FastAPI כ-Serverless]
+    end
+    Gemini[[🤖 Google Gemini]]
+    User --> UI --> Orch
+    Orch -->|HTTP לכל שלב| API
+    Static -.מגיש UI.-> UI
+    API -->|קריאות LLM| Gemini
+    Gemini -->|JSON / טקסט| API
+    API -->|תוצאות| Orch
+    </pre></div>
+    <h3>מבנה התיקיות</h3>
+    <div class="card"><pre style="margin:0;overflow-x:auto;direction:ltr;font-size:13px;color:var(--muted);font-family:ui-monospace,monospace">TailorCV/
+├── api/index.py          ← נקודת כניסה ל-Serverless (מתאם דק)
+├── backend/app/
+│   ├── main.py           ← FastAPI, CORS, שגיאות
+│   ├── config.py         ← הגדרות
+│   ├── models/           ← מבני נתונים (Pydantic)
+│   ├── services/         ← 6 המודולים + הצנרת
+│   ├── utils/            ← LLM, מסמכים, ייצוא, rate-limit
+│   └── routers/tailor.py ← ה-API endpoints
+├── frontend/src/
+│   ├── App.tsx           ← מרכז ה-state + האשף
+│   ├── components/       ← 5 קומפוננטות מסך
+│   ├── services/api.ts   ← הלקוח שמתזמר את הצנרת
+│   └── types/index.ts    ← הטיפוסים המשותפים
+├── vercel.json           ← הגדרת הפריסה
+└── .github/workflows/ci.yml ← בדיקות אוטומטיות</pre></div>
+  </section>
+
+  <!-- ===== 4 ===== -->
+  <section id="s4">
+    <h2 class="sec"><span class="num">4.</span> זרימת המשתמש + מסכים חיים</h2>
+    <p>מה שקורה מרגע שהמשתמש נכנס ועד שהוא מוריד קובץ:</p>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+    Start([פותח את האתר]) --> S0[שלב 0 — קלט:<br/>תיאור משרה + קו״ח]
+    S0 --> Valid{קלט תקין?}
+    Valid -->|לא| S0
+    Valid -->|כן| S1[שלב 1 — הגדרות:<br/>מחמירות, מכתב, הערות]
+    S1 -->|Continue| Pipe[🔄 הרצת הצנרת<br/>פס התקדמות חי]
+    Pipe --> S2[שלב 2 — תוצאות:<br/>קו״ח + מכתב + ניתוח + שינויים]
+    S2 --> Export{ייצוא?}
+    Export -->|Markdown / Word| Server[שרת מייצר קובץ]
+    Export -->|PDF| Client[הדפדפן מייצר PDF]
+    Export -->|Copy| Clip[העתקה ללוח]
+    Server --> Done([הורדה])
+    Client --> Done
+    Clip --> Done
+    </pre></div>
+
+    <h3>4.1 תצוגות מסך חיות מהאתר</h3>
+    <div class="note tip">צילומי המסך צולמו <b>בפועל</b> מהאתר החי <a href="https://tailor-cv.yishaik.com">tailor-cv.yishaik.com</a>, על ריצה אמיתית של הצנרת (משרת "Senior Frontend Engineer" + קו״ח לדוגמה).</div>
+
+    <p><b>שלב 0 — קלט:</b> מדביקים תיאור משרה ומעלים/מדביקים קו״ח. כפתור ה-Continue נעול עד שהקלט תקין.</p>
+    <div class="gallery two">
+      <figure class="shot"><img loading="lazy" src="screenshots/01-landing.png" alt="מסך פתיחה"><figcaption>מסך הפתיחה (שלב Input)</figcaption></figure>
+      <figure class="shot"><img loading="lazy" src="screenshots/01b-input-filled.png" alt="אחרי מילוי"><figcaption>אחרי מילוי משרה + קו״ח</figcaption></figure>
+    </div>
+
+    <p><b>שלב 1 — הגדרות:</b> מכתב מקדים, רמת מחמירות, ופורמט ייצוא. שימו לב לבורר <b>Export Format</b> — זהו ה"קוד המת" (ראו פרק 11): הבחירה כאן לא נשלחת בכלל ל-API.</p>
+    <figure class="shot"><img loading="lazy" src="screenshots/02-configure.png" alt="הגדרות"><figcaption>שלב ההגדרות (Configure)</figcaption></figure>
+
+    <p><b>במהלך העיבוד:</b> דיאלוג התקדמות אמיתי שמראה את 6 שלבי הצנרת אחד-אחד — אפשרי בזכות התזמור בצד הלקוח (פרק 8).</p>
+    <figure class="shot"><img loading="lazy" src="screenshots/03-progress.png" alt="התקדמות"><figcaption>דיאלוג ההתקדמות עם 6 השלבים</figcaption></figure>
+
+    <p><b>שלב 2 — תוצאות:</b> קו״ח מותאמים עם ציון התאמה (כאן <b>89</b>), 4 טאבים, ופאנל ייצוא.</p>
+    <figure class="shot"><img loading="lazy" src="screenshots/04-results-cv.png" alt="תוצאות"><figcaption>קו״ח מותאמים — ציון 89</figcaption></figure>
+
+    <p><b>טאב הניתוח:</b> "מה חסר ואיך לגשר" + "דרישות שאתה עונה עליהן" + כיסוי מילות מפתח ATS — עבודת ה-Mapper באופן חזותי.</p>
+    <figure class="shot"><img loading="lazy" src="screenshots/06-results-analysis.png" alt="ניתוח"><figcaption>טאב הניתוח — פערים וכיסוי ATS</figcaption></figure>
+
+    <div class="gallery two">
+      <figure class="shot"><img loading="lazy" src="screenshots/07-results-changes.png" alt="שינויים"><figcaption>טאב השינויים — Revert/Re-apply</figcaption></figure>
+      <figure class="shot"><img loading="lazy" src="screenshots/05-results-cover-letter.png" alt="מכתב"><figcaption>טאב המכתב המקדים</figcaption></figure>
+    </div>
+  </section>
+
+  <!-- ===== 5 ===== -->
+  <section id="s5">
+    <h2 class="sec"><span class="num">5.</span> ה-Backend — שישה מודולים ומנוע ה-AI</h2>
+    <p>לב המערכת: <b>צנרת (Pipeline) של 6 מודולים</b>. כל מודול הוא שירות שמקבל קלט מובנה ומחזיר פלט מובנה.</p>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+    IN1[תיאור משרה] --> M1
+    IN2[קו״ח מקוריים] --> M2
+    M1["1️⃣ Job Extractor<br/>דרישות, מילות מפתח ATS"]
+    M2["2️⃣ CV Extractor<br/>עובדות מאומתות בלבד"]
+    M1 --> M3
+    M2 --> M3
+    M3["3️⃣ Mapper<br/>דרישה ← ראיה + ציון"]
+    M3 --> M4["4️⃣ CV Generator<br/>כותב ומנסח מחדש"]
+    M4 --> M5{"5️⃣ QA Guardrails<br/>יש המצאה?"}
+    M5 -->|לא| M6["6️⃣ Cover Letter<br/>מכתב אופציונלי"]
+    M5 -->|כן| BLOCK[🛑 שגיאה 400<br/>FABRICATION_DETECTED]
+    M6 --> OUT[📦 TailorResult]
+    </pre></div>
+    <div class="tw"><table>
+      <thead><tr><th>#</th><th>מודול</th><th>מה הוא עושה</th><th>AI?</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><b>Job Extractor</b></td><td>הופך תיאור משרה חופשי לרשימה מובנית: דרישות חובה/רצויות, אחריות, מילות מפתח ATS, רמזי תרבות.</td><td>✅</td></tr>
+        <tr><td>2</td><td><b>CV Extractor</b></td><td>מחלץ <b>רק עובדות מאומתות</b>, שומר ניסוח מקורי, ומוחק כישורים מוסקים בלי הוכחה.</td><td>✅</td></tr>
+        <tr><td>3</td><td><b>Mapper</b></td><td>מקשר כל דרישה לראיה בקו״ח, נותן ציון רלוונטיות, מסווג סוג התאמה. מחשב ציון כולל.</td><td>✅</td></tr>
+        <tr><td>4</td><td><b>CV Generator</b></td><td>בונה קו״ח חלק-אחר-חלק, משכתב כל שורה, צובר יומן שינויים ופריטים גבוליים.</td><td>✅</td></tr>
+        <tr><td>5</td><td><b>QA Guardrails</b></td><td><b>ללא AI</b> — בדיקות Python שמאתרות המצאות וחוסמות.</td><td>❌</td></tr>
+        <tr><td>6</td><td><b>Cover Letter</b></td><td>מכתב מקדים ב-4 פסקאות, בטון שמתאים לתרבות החברה.</td><td>✅</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>איך מדברים עם ה-AI (Gemini)</h3>
+    <p>כל הקשר עם Gemini עובר דרך מחלקה אחת (<code>llm_client.py</code>) עם שתי דרכי קריאה:</p>
+    <div class="grid two">
+      <div class="card"><b style="color:var(--good)">📋 generate_structured()</b><ul><li>מבקש JSON לפי סכמה</li><li>מאמת מול Pydantic</li><li>עד 3 ניסיונות חוזרים — <b>חזק</b></li><li>משמש מודולים 1, 2</li></ul></div>
+      <div class="card"><b style="color:var(--bad)">📝 generate_text()</b><ul><li>טקסט חופשי</li><li>חילוץ JSON ע״י חיתוך סוגריים</li><li>ללא ניסיון חוזר — <b>שברירי</b></li><li>משמש מודולים 3, 4, 6</li></ul></div>
+    </div>
+    <ul>
+      <li><b>המודל:</b> <code>gemini-3.1-pro-preview</code> — יחיד לכל השלבים. <b>טמפרטורה 0.1</b> לפלט יציב.</li>
+      <li>הדרך השברירית נשענת על "נפילה רכה" חזרה לטקסט המקורי אם ה-AI מחזיר משהו לא צפוי.</li>
+    </ul>
+    <div class="note warn">אי-דיוק קטן: ה-docstring טוען שמשתמשים ב"מצב JSON מובנה של Gemini", אבל בפועל פשוט מבקשים JSON בטקסט. לא באג — אבל מטעה למתחזק.</div>
+
+    <h3>הרצה במקביל — הגיבור הנסתר</h3>
+    <p>כדי לעמוד בזמן (פרק 8), קריאות AI רצות <b>במקביל</b> ב-<code>asyncio.gather</code>: מודולים 1+2 יחד, כל דרישה ב-Mapper במקביל, וכל שורת ניסיון משוכתבת במקביל. זה מקצר את הזמן מ"סכום כל הקריאות" ל"הקריאה הכי איטית".</p>
+  </section>
+
+  <!-- ===== 6 ===== -->
+  <section id="s6">
+    <h2 class="sec"><span class="num">6.</span> מנגנון ה-Guardrails נגד המצאות</h2>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+    Start[קו״ח מותאמים מוכנים] --> C1{חברה שלא<br/>הייתה במקור?}
+    C1 -->|כן| HARD[🛑 חוסם — 400]
+    C1 -->|לא| C2{כישור שלא<br/>היה במקור?}
+    C2 -->|כן| HARD
+    C2 -->|לא| C3{מספר מוגזם?}
+    C3 -->|כן| WARN[⚠️ אזהרה בלבד]
+    C3 -->|לא| C4{תפקיד שדורג בכוח?}
+    C4 -->|כן| WARN
+    C4 -->|לא| OK[✅ עובר]
+    WARN --> OK
+    OK --> Score[ציון התאמה 0–100]
+    </pre></div>
+    <h3>חזק או נאיבי?</h3>
+    <p>הערכה כנה: <b>המנגנון נשען על השוואת מחרוזות פשוטה, והוא בעיקר רשת ביטחון — לא מאמת סמנטי אמיתי.</b></p>
+    <div class="grid two">
+      <div class="gbu good"><h3>✅ מה שטוב</h3><ul>
+        <li>שתי בדיקות באמת <b>חוסמות</b>: חברה מומצאת וכישור מומצא.</li>
+        <li>מודול 2 מוחק כישורים מוסקים בלי הוכחה תקפה.</li>
+      </ul></div>
+      <div class="gbu bad"><h3>⚠️ מה שנאיבי</h3><ul>
+        <li>השוואת מחרוזות מדויקת — "Node" מול "Node.js" ייחשב בטעות כ"המצאה".</li>
+        <li>בודק רק את מקטע הכישורים — לא את טקסט השורות.</li>
+        <li>בדיקת המספרים גסה; זיהוי הגזמות לפי רשימת מילים קבועה שקל לעקוף.</li>
+      </ul></div>
+    </div>
+    <div class="note key"><b>השורה התחתונה:</b> ההגנה האמיתית מהמצאות מגיעה בעיקר מ<b>ההנחיות ל-AI</b> (כללי דיוק קפדניים ב-prompt) ומהטמפרטורה הנמוכה, ופחות מה-Guardrails עצמם. הם "חגורת ביטחון" טובת-כוונה אבל לא הוכחה הרמטית.</div>
+  </section>
+
+  <!-- ===== 7 ===== -->
+  <section id="s7">
+    <h2 class="sec"><span class="num">7.</span> ה-Frontend — אשף בשלושה שלבים</h2>
+    <p>הממשק הוא <b>אשף (Wizard) של 3 שלבים</b> עם רכיב Stepper של Material UI. כל ה-state יושב בקומפוננטה אחת (<code>App.tsx</code>) עם <code>useState</code> — אין Redux, אין Context, אין Router.</p>
+    <div class="diagram"><pre class="mermaid">
+flowchart LR
+    App["App.tsx<br/>(כל ה-state)"]
+    App --> C1[JobDescriptionInput]
+    App --> C2[CVUploader]
+    App --> C3[OptionsPanel]
+    App --> C4[ResultsDisplay]
+    App --> C5[ExportOptions]
+    </pre></div>
+    <div class="tw"><table>
+      <thead><tr><th>קומפוננטה</th><th>תפקיד</th><th>פרטים בולטים</th></tr></thead>
+      <tbody>
+        <tr><td><code>JobDescriptionInput</code></td><td>קלט המשרה</td><td>הדבקה מהלוח, ספירת תווים, מינ' 50</td></tr>
+        <tr><td><code>CVUploader</code></td><td>העלאה/הדבקה</td><td>גרירה ושחרור, PDF/DOCX/TXT/MD, מינ' 100</td></tr>
+        <tr><td><code>OptionsPanel</code></td><td>הגדרות</td><td>מכתב, מחמירות, הערות חופשיות</td></tr>
+        <tr><td><code>ResultsDisplay</code></td><td>תצוגה + עריכה</td><td><b>1031 שורות!</b> 4 טאבים, עריכה inline, Revert</td></tr>
+        <tr><td><code>ExportOptions</code></td><td>ייצוא</td><td>MD/Word דרך השרת, PDF בצד הלקוח</td></tr>
+      </tbody>
+    </table></div>
+    <h3>תכונות UX חכמות</h3>
+    <ul>
+      <li><b>Revert/Re-apply</b> ליומן השינויים — מחפש את הטקסט הנוכחי ומחליף בגרסה המקורית/החדשה.</li>
+      <li><b>ניתוח פערים ממוין</b> לפי חומרה, עם הצעות לגישור.</li>
+      <li><b>חילוץ קישורי הגשה</b> מתיאור המשרה, עם סינון פרטי המועמד.</li>
+    </ul>
+  </section>
+
+  <!-- ===== 8 ===== -->
+  <section id="s8">
+    <h2 class="sec"><span class="num">8.</span> התזמור בצד הלקוח — הסיפור החשוב ביותר</h2>
+    <h3>הבעיה</h3>
+    <p>בגרסה המקורית, נקודת קצה אחת הריצה את <b>כל</b> הצנרת — 5-6 קריאות <b>רצופות</b> ל-Gemini — בתוך בקשה אחת. אבל פונקציית Serverless ב-Vercel מוגבלת ל-<b>60 שניות</b>, והמודל איטי → <b>timeout בפרודקשן</b>.</p>
+    <h3>הפתרון — שני חלקים</h3>
+    <p><b>חלק א':</b> הדפדפן מתזמר את הצנרת — קריאה נפרדת לכל שלב, כל אחת עם תקציב 60 שניות משלה:</p>
+    <div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    participant U as 🖥️ דפדפן
+    participant API as ☁️ FastAPI
+    participant G as 🤖 Gemini
+    U->>API: POST /parse-file (אם הועלה קובץ)
+    API-->>U: טקסט קו״ח
+    par קריאות מקבילות
+        U->>API: POST /extract-job
+        API->>G: חילוץ דרישות
+        G-->>API: JSON
+        API-->>U: JobRequirements
+    and
+        U->>API: POST /extract-cv
+        API->>G: חילוץ עובדות
+        G-->>API: JSON
+        API-->>U: CVFacts
+    end
+    U->>API: POST /map
+    API-->>U: MappingResult
+    U->>API: POST /generate-cv
+    API-->>U: TailoredCV + יומן + ציון
+    opt מכתב מקדים
+        U->>API: POST /cover-letter
+        API-->>U: CoverLetter
+    end
+    Note over U: הדפדפן מרכיב את התוצאה
+    </pre></div>
+    <p><b>חלק ב':</b> מקביליות בתוך כל שלב (<code>asyncio.gather</code>).</p>
+    <div class="note tip"><b>בונוס:</b> מכיוון שכל שלב הוא קריאה נפרדת, פס ההתקדמות <b>אמיתי</b> — לא אנימציה מזויפת.</div>
+    <div class="note warn"><b>המחיר:</b> השרת כבר לא אוכף את שלמות הצנרת מקצה לקצה. לקוח יכול לקרוא ל-<code>/generate-cv</code> עם נתונים שרירותיים או לדלג על שלבים. האמון עבר לדפדפן.</div>
+  </section>
+
+  <!-- ===== 9 ===== -->
+  <section id="s9">
+    <h2 class="sec"><span class="num">9.</span> פריסה (Deployment)</h2>
+    <h3>איך זה רץ בפרודקשן (Vercel)</h3>
+    <p>הפרודקשן הוא <b>היברידי</b>: אתר סטטי + פונקציית Python אחת.</p>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+    Push[git push ל-master] --> Build[build frontend → dist] & Func[api/index.py<br/>Serverless 60s]
+    Req([בקשה]) --> Router{rewrites}
+    Router -->|/api/*| Func
+    Router -->|/health /docs| Func
+    Router -->|כל השאר| Build
+    </pre></div>
+    <ul>
+      <li><code>api/index.py</code> — מתאם דק (11 שורות): מוסיף את <code>backend</code> ל-<code>sys.path</code> ומייבא את FastAPI. אין צורך ב-Mangum.</li>
+      <li><b>CD אוטומטי:</b> כל push ל-<code>master</code> נפרס; כל PR מקבל preview.</li>
+    </ul>
+    <h3>CI — בדיקות אוטומטיות</h3>
+    <div class="diagram"><pre class="mermaid">
+flowchart LR
+    T[push / PR] --> FE[Frontend:<br/>ci → lint → test → build] & BE[Backend:<br/>install → compile → smoke → pytest]
+    </pre></div>
+    <div class="note warn">ה-CI <b>לא חוסם</b> את הפריסה — Vercel נפרס בנפרד, אז master "אדום" עדיין יכול להגיע לפרודקשן.</div>
+    <h3>Docker — רק לפיתוח</h3>
+    <p><code>docker-compose.yml</code> מריץ backend (8000) + frontend (5173) עם <code>--reload</code>. זה <b>לא</b> מייצג את הפרודקשן (שם רצות פונקציות Serverless). נוחות פיתוח בלבד.</p>
+    <h3>סודות וסביבה</h3>
+    <div class="tw"><table>
+      <thead><tr><th>משתנה</th><th>היכן</th><th>הערה</th></tr></thead>
+      <tbody>
+        <tr><td><code>GEMINI_API_KEY</code></td><td>שרת בלבד</td><td>אף פעם לא מגיע ללקוח</td></tr>
+        <tr><td><code>CORS_ORIGINS</code></td><td>שרת</td><td>localhost + <code>*.vercel.app</code></td></tr>
+        <tr><td><code>VITE_API_URL</code></td><td>לקוח</td><td>בפרודקשן <code>=/api</code></td></tr>
+      </tbody>
+    </table></div>
+    <p><code>/set-api-key</code> חסום (403) אלא אם <code>DEBUG=true</code> — החלטת אבטחה נכונה.</p>
+  </section>
+
+  <!-- ===== 10 ===== -->
+  <section id="s10">
+    <h2 class="sec"><span class="num">10.</span> בדיקות (Tests)</h2>
+    <div class="grid two">
+      <div class="card"><h3 style="margin-top:0">🐍 Backend — pytest</h3><p style="color:var(--muted);font-size:14px">כל קריאות ה-LLM מ-mock (לא צריך מפתח).</p><ul style="font-size:14px">
+        <li><code>test_api.py</code> — חוזה ה-API, שגיאות, rate-limit</li>
+        <li><code>test_pipeline.py</code> — חיווט הצנרת + callbacks</li>
+        <li><code>test_qa_guardrails.py</code> — ⭐ לוגיקת ה-Guardrails האמיתית</li>
+      </ul></div>
+      <div class="card"><h3 style="margin-top:0">⚛️ Frontend — vitest</h3><p style="color:var(--muted);font-size:14px">6 קבצים, בעיקר "נטען בלי לקרוס".</p><ul style="font-size:14px">
+        <li>כיסוי שטחי יחסית</li>
+        <li>החלפת טאבים, קלטים בסיסיים</li>
+      </ul></div>
+    </div>
+    <div class="note warn"><b>חסר:</b> בדיקות ל-endpoints החדשים (<code>/map</code>, <code>/generate-cv</code>), ל-<code>api.ts</code> (כל לוגיקת התזמור), ל-<code>apply.ts</code>, ואין בדיקות end-to-end.</div>
+  </section>
+
+  <!-- ===== 11 ===== -->
+  <section id="s11">
+    <h2 class="sec"><span class="num">11.</span> הטוב, הרע והמכוער</h2>
+    <div class="gbu good"><h3>✅ הטוב</h3><ul>
+      <li><b>ארכיטקטורה נקייה ומטופסת</b> — 6 מודולים מגובשים, Pydantic חזק, הפרדה ברורה.</li>
+      <li><b>הנדסת מקביליות אמיתית</b> — <code>asyncio.gather</code> כדי לעמוד בגבול 60 השניות.</li>
+      <li><b>חישוב ותק נכון</b> — מיזוג תקופות תעסוקה חופפות.</li>
+      <li><b>נפילה רכה</b> — שכתוב שורה שנכשל חוזר למקור; ריצה אחת לא נשברת.</li>
+      <li><b>פתרון מצוין ל-timeout</b> + פס התקדמות אמיתי.</li>
+      <li><b>המפתח אף פעם לא מגיע ללקוח</b>, <code>/set-api-key</code> חסום בפרודקשן.</li>
+      <li><b>בדיקות אמיתיות</b> — במיוחד ל-Guardrails ולחוזה ה-API.</li>
+    </ul></div>
+    <div class="gbu bad"><h3>⚠️ הרע</h3><ul>
+      <li><b>Guardrails נאיביים</b> — השוואת מחרוזות, תחושת ביטחון מוטעית.</li>
+      <li><b>חילוץ JSON שברירי</b> וללא ניסיון חוזר בשלבים הכי שבירים.</li>
+      <li><b>כפילות לוגיקה</b> בין הצנרת המונוליטית ל-endpoints של התזמור.</li>
+      <li><b>כפילות קבצי תלויות</b> (<code>api/</code> מול <code>backend/</code>) מסונכרנים ידנית.</li>
+      <li><b>אין lockfile</b> → build לא רפרודוקטיבי.</li>
+      <li><b>קוד מת</b> — בורר <code>outputFormat</code> לא נשלח ל-API; 3 פונקציות API ישנות.</li>
+    </ul></div>
+    <div class="gbu ugly"><h3>🔴 המכוער</h3><ul>
+      <li>🚨 <b>אין שום אימות</b> — כל ה-endpoints פתוחים לעולם. כל אחד יכול לשרוף את חשבון ה-Gemini. הסיכון הגדול ביותר.</li>
+      <li><b>Rate-limiting לא עובד בפרודקשן</b> — <code>memory://</code> ב-Serverless הוא זיכרון נפרד וזמני לכל מופע.</li>
+      <li><b>Singleton גלובלי של ה-LLM</b> שניתן לשינוי דרך endpoint.</li>
+      <li><b>שגיאות 500 מחזירות <code>str(e)</code></b> — דליפת מידע פנימי.</li>
+      <li><b>אין הגבלת גודל קובץ</b> — סיכון DoS.</li>
+      <li><b>HTML לא-escaped ביצירת PDF</b> בצד הלקוח.</li>
+      <li><b><code>ResultsDisplay.tsx</code> — מפלצת 1031 שורות.</b></li>
+    </ul></div>
+  </section>
+
+  <!-- ===== 12 ===== -->
+  <section id="s12">
+    <h2 class="sec"><span class="num">12.</span> מה חסר בפרויקט</h2>
+    <div class="grid two">
+      <div class="miss"><h3>🔐 אבטחה</h3><ul><li>אין אימות / הרשאות</li><li>אין הגנה מפני prompt injection</li><li>אין הגבלת גודל קובץ</li><li>rate-limit לא אפקטיבי</li></ul></div>
+      <div class="miss"><h3>📊 תצפיתיות</h3><ul><li>אין error tracking (Sentry)</li><li>אין מטריקות / traces</li><li>אין לוגים מובנים</li><li>אין ניטור uptime</li></ul></div>
+      <div class="miss"><h3>💾 התמדה</h3><ul><li>אין מסד נתונים / היסטוריה</li><li>רענון = איבוד הכל (אין localStorage)</li></ul></div>
+      <div class="miss"><h3>🧪 בדיקות</h3><ul><li>אין e2e</li><li>אין בדיקות ל-endpoints החדשים</li><li>ה-LLM client האמיתי לא נבדק</li></ul></div>
+      <div class="miss"><h3>⚙️ תפעול</h3><ul><li>CI לא חוסם deploy</li><li>אין lockfile / Dependabot</li><li>Docker ≠ פרודקשן</li></ul></div>
+      <div class="miss"><h3>🎨 חווית משתמש</h3><ul><li>אין נגישות מלאה (a11y)</li><li>אין ביטול בקשה (abort)</li><li>אין routing / i18n</li></ul></div>
+    </div>
+    <h3>הפערים הקריטיים (לפי עדיפות)</h3>
+    <ol>
+      <li><b>אימות + rate-limit אמיתי</b> — ה-API פתוח לעולם ויכול לשרוף תקציב Gemini.</li>
+      <li><b>תצפיתיות</b> — בלי Sentry/לוגים אי אפשר לדעת מה נשבר בפרודקשן.</li>
+      <li><b>חיזוק ה-Guardrails</b> — מעבר לבדיקה סמנטית, כיסוי גם טקסט חופשי.</li>
+      <li><b>ניקוי טכני</b> — איחוד תלויות, lockfile, פיצול <code>ResultsDisplay</code>, הסרת קוד מת.</li>
+    </ol>
+  </section>
+
+  <!-- ===== 13 ===== -->
+  <section id="s13">
+    <h2 class="sec"><span class="num">13.</span> סיכום והמלצות</h2>
+    <p><b>TailorCV הוא פרויקט פורטפוליו מרשים ומהונדס היטב.</b> הוא מדגים חשיבה מוצרית אמיתית (פילוסופיית "ללא המצאות"), הנדסה מתוחכמת (תזמור בצד הלקוח + מקביליות כדי לנצח את גבול ה-Serverless), וקוד נקי ומטופס עם בדיקות.</p>
+    <p>ובו-זמנית, הוא נושא חתימות של פרויקט שנבנה מהר להדגמה: <b>אין אימות, אין תצפיתיות, ה-Guardrails נאיביים, ויש חוב טכני</b>.</p>
+    <h3>המלצות מעשיות</h3>
+    <div class="tw"><table>
+      <thead><tr><th>עדיפות</th><th>פעולה</th><th>מאמץ</th></tr></thead>
+      <tbody>
+        <tr><td>🔴 גבוהה</td><td>אימות בסיסי (API key / Clerk) + rate-limit על Upstash</td><td>בינוני</td></tr>
+        <tr><td>🔴 גבוהה</td><td>לחבר Sentry ולוגים מובנים</td><td>נמוך</td></tr>
+        <tr><td>🟡 בינונית</td><td>לחזק את ה-Guardrails (נרמול מחרוזות, כיסוי טקסט חופשי)</td><td>בינוני</td></tr>
+        <tr><td>🟡 בינונית</td><td>לאחד <code>requirements.txt</code>, להוסיף lockfile</td><td>נמוך</td></tr>
+        <tr><td>🟢 נמוכה</td><td>לפצל את <code>ResultsDisplay.tsx</code>, להסיר קוד מת</td><td>נמוך</td></tr>
+        <tr><td>🟢 נמוכה</td><td>בדיקות ל-<code>api.ts</code>, <code>apply.ts</code>, ול-endpoints החדשים</td><td>בינוני</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <footer>
+    מסמך זה נוצר מתוך ניתוח מעמיק של קוד המקור. כל ההפניות לקבצים אומתו מול הקוד בפועל.<br>
+    📘 TailorCV — Made with care for job seekers everywhere
+  </footer>
+</div>
+
+<button id="top" aria-label="חזרה למעלה">↑</button>
+<div class="lb" id="lb"><img id="lbimg" src="" alt=""></div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  // ---- Mermaid ----
+  mermaid.initialize({
+    startOnLoad:true, theme:'dark',
+    themeVariables:{
+      fontFamily:'Heebo, sans-serif', fontSize:'15px',
+      primaryColor:'#1d1830', primaryTextColor:'#eceaf6', primaryBorderColor:'#7c4dff',
+      lineColor:'#a59fbd', secondaryColor:'#251f3a', tertiaryColor:'#16131f',
+      mainBkg:'#1d1830', clusterBkg:'#13101c', clusterBorder:'#3a3450',
+      actorBkg:'#1d1830', actorBorder:'#7c4dff', actorTextColor:'#eceaf6',
+      noteBkgColor:'#251f3a', noteTextColor:'#eceaf6', noteBorderColor:'#7c4dff'
+    },
+    flowchart:{useMaxWidth:true, htmlLabels:true, curve:'basis'},
+    sequence:{useMaxWidth:true}
+  });
+
+  // ---- Drawer ----
+  const drawer=document.getElementById('drawer'), scrim=document.getElementById('scrim');
+  const openD=()=>{drawer.classList.add('open');scrim.classList.add('open')};
+  const closeD=()=>{drawer.classList.remove('open');scrim.classList.remove('open')};
+  document.getElementById('menuBtn').onclick=openD;
+  scrim.onclick=closeD;
+  drawer.querySelectorAll('a').forEach(a=>a.onclick=closeD);
+
+  // ---- Scroll progress + back-to-top + scrollspy ----
+  const prog=document.getElementById('progress'), topBtn=document.getElementById('top');
+  const navLinks=[...drawer.querySelectorAll('a')];
+  const sections=[...document.querySelectorAll('section')];
+  function onScroll(){
+    const h=document.documentElement;
+    const pct=h.scrollTop/(h.scrollHeight-h.clientHeight)*100;
+    prog.style.width=pct+'%';
+    topBtn.classList.toggle('show', h.scrollTop>500);
+    let cur=sections[0]?.id;
+    for(const s of sections){ if(s.getBoundingClientRect().top<=120) cur=s.id; }
+    navLinks.forEach(a=>a.classList.toggle('active', a.getAttribute('href')==='#'+cur));
+  }
+  window.addEventListener('scroll',onScroll,{passive:true}); onScroll();
+  topBtn.onclick=()=>window.scrollTo({top:0,behavior:'smooth'});
+
+  // ---- Lightbox ----
+  const lb=document.getElementById('lb'), lbimg=document.getElementById('lbimg');
+  document.querySelectorAll('figure.shot img').forEach(img=>{
+    img.onclick=()=>{lbimg.src=img.src;lb.classList.add('open')};
+  });
+  lb.onclick=()=>lb.classList.remove('open');
+</script>
+</body>
+</html>

@@ -23,6 +23,7 @@ from ..models.output import (
 )
 from ..models.options import StrictnessConfig, STRICTNESS_CONFIGS
 from ..utils.llm_client import get_llm_client
+from ..utils.prompt_security import format_user_instructions, untrusted_block
 from .job_extractor import get_keyword_priority_map
 import logging
 
@@ -228,23 +229,22 @@ class CVGenerator:
             f"- {r.description}" for r in self.requirements.must_have[:5]
         ])
         
-        # Build user notes section if provided
-        user_notes_section = ""
-        if self.user_instructions:
-            user_notes_section = f"\nUSER NOTES/INSTRUCTIONS:\n{self.user_instructions}\n"
+        user_notes_section = format_user_instructions(self.user_instructions)
 
         prompt = SUMMARY_GENERATION_PROMPT.format(
             job_title=self.requirements.job_title,
             company=self.requirements.company or "the company",
-            requirements=req_summary,
+            requirements=untrusted_block("job_requirements", req_summary),
             total_years=f"{total_years:.1f}",
-            current_title=current_title,
-            top_skills=", ".join(top_skills),
-            key_achievements="; ".join(achievements) if achievements else "Various accomplishments",
-            keywords=", ".join(keywords),
+            current_title=untrusted_block("current_title", current_title),
+            top_skills=untrusted_block("top_skills", ", ".join(top_skills)),
+            key_achievements=untrusted_block(
+                "key_achievements",
+                "; ".join(achievements) if achievements else "Various accomplishments",
+            ),
+            keywords=untrusted_block("keywords", ", ".join(keywords)),
             user_notes_section=user_notes_section
         )
-        prompt = self._apply_user_instructions(prompt)
         
         summary = await self.client.generate_text(prompt)
         summary = summary.strip().strip('"')
@@ -366,18 +366,17 @@ class CVGenerator:
         """Rewrite a bullet to better align with job."""
         import json
 
-        # Build user notes section if provided
-        user_notes_section = ""
-        if self.user_instructions:
-            user_notes_section = f"\nUSER NOTES/INSTRUCTIONS:\n{self.user_instructions}\n"
+        user_notes_section = format_user_instructions(self.user_instructions)
 
         prompt = BULLET_REWRITE_PROMPT.format(
-            original=original,
-            keywords=", ".join(keywords[:10]),
-            responsibilities="\n".join(f"- {r}" for r in responsibilities[:3]),
+            original=untrusted_block("original_bullet", original),
+            keywords=untrusted_block("keywords", ", ".join(keywords[:10])),
+            responsibilities=untrusted_block(
+                "job_responsibilities",
+                "\n".join(f"- {r}" for r in responsibilities[:3]),
+            ),
             user_notes_section=user_notes_section
         )
-        prompt = self._apply_user_instructions(prompt)
         
         try:
             response = await self.client.generate_text(prompt)
@@ -529,15 +528,6 @@ class CVGenerator:
                 ))
         
         return relevant_projects[:5]
-
-    def _apply_user_instructions(self, prompt: str) -> str:
-        if not self.user_instructions:
-            return prompt
-        return (
-            f"{prompt}\n\nUSER INSTRUCTIONS (follow if they do not conflict with the rules):\n"
-            f"{self.user_instructions}\n"
-        )
-
 
 async def generate_tailored_cv(
     requirements: JobRequirements,

@@ -10,6 +10,7 @@ from ..models.mapping import MappingResult
 from ..models.output import CoverLetter
 from ..models.options import StrictnessConfig, STRICTNESS_CONFIGS
 from ..utils.llm_client import get_llm_client
+from ..utils.prompt_security import format_user_instructions, untrusted_block
 from .cv_extractor import get_total_experience_years
 import logging
 
@@ -150,32 +151,33 @@ async def generate_cover_letter(
     if mapping.overall_match.critical_gaps:
         gaps_text = "; ".join(mapping.overall_match.critical_gaps[:2])
     
-    # Build user notes section if provided
-    user_notes_section = ""
-    if user_instructions:
-        user_notes_section = f"\nUSER NOTES/INSTRUCTIONS:\n{user_instructions}"
+    user_notes_section = format_user_instructions(user_instructions)
 
     prompt = COVER_LETTER_PROMPT.format(
-        job_title=requirements.job_title,
-        company=requirements.company or "the company",
-        requirements=req_text,
-        culture=culture_text,
-        name=cv_facts.personal_info.name,
-        current_title=current_title,
+        job_title=untrusted_block("job_title", requirements.job_title),
+        company=untrusted_block("company", requirements.company or "the company"),
+        requirements=untrusted_block("requirements", req_text),
+        culture=untrusted_block("culture", culture_text),
+        name=untrusted_block("candidate_name", cv_facts.personal_info.name),
+        current_title=untrusted_block("current_title", current_title),
         years=f"{get_total_experience_years(cv_facts):.1f}",
-        skills=", ".join(relevant_skills) or "Various relevant skills",
-        achievements="; ".join(key_achievements) if key_achievements else "Various accomplishments",
+        skills=untrusted_block(
+            "skills",
+            ", ".join(relevant_skills) or "Various relevant skills",
+        ),
+        achievements=untrusted_block(
+            "achievements",
+            "; ".join(key_achievements) if key_achievements else "Various accomplishments",
+        ),
         match_score=mapping.overall_match.score,
-        strongest=", ".join(mapping.overall_match.strongest_matches[:3]) if mapping.overall_match.strongest_matches else "Multiple areas",
-        gaps=gaps_text or "No critical gaps",
-        tone=tone,
+        strongest=untrusted_block(
+            "strongest_matches",
+            ", ".join(mapping.overall_match.strongest_matches[:3]) if mapping.overall_match.strongest_matches else "Multiple areas",
+        ),
+        gaps=untrusted_block("gaps", gaps_text or "No critical gaps"),
+        tone=untrusted_block("tone", tone),
         user_notes_section=user_notes_section
     )
-    if user_instructions:
-        prompt = (
-            f"{prompt}\n\nUSER INSTRUCTIONS (follow if they do not conflict with the rules):\n"
-            f"{user_instructions.strip()}\n"
-        )
     
     try:
         response = await client.generate_text(prompt)

@@ -14,7 +14,6 @@ from ..models.options import (
     TailorOptions,
     ExtractJobRequest,
     ExtractCVRequest,
-    ApiKeyRequest,
 )
 from ..models.output import (
     TailorResult,
@@ -38,13 +37,18 @@ from ..services.tailoring_pipeline import run_tailoring_pipeline, TailoringError
 
 from ..utils.document_parser import extract_text, clean_extracted_text
 from ..utils.exporters import generate_markdown, generate_docx, generate_pdf
-from ..utils.llm_client import set_llm_api_key
+from ..utils.prompt_security import (
+    PromptInjectionError,
+    scan_for_prompt_injection,
+    validate_prompt_input,
+)
 from ..utils.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
 router = APIRouter()
+GENERIC_PROCESSING_MESSAGE = "The server failed to process the request. Please try again."
 
 
 # ---------------------------------------------------------------------------
@@ -63,6 +67,52 @@ def _validate_file(filename: Optional[str]) -> None:
                 "message": f"Supported formats: {', '.join(allowed)}",
             },
         )
+
+
+def _raise_server_error(error: str = "PROCESSING_ERROR") -> None:
+    """Raise a generic 500 while preserving details in server logs only."""
+    raise HTTPException(
+        status_code=500,
+        detail={"error": error, "message": GENERIC_PROCESSING_MESSAGE},
+    )
+
+
+def _raise_prompt_injection_error(exc: PromptInjectionError) -> None:
+    """Return a consistent prompt-injection validation response."""
+    raise HTTPException(
+        status_code=400,
+        detail={"error": "PROMPT_INJECTION_DETECTED", "message": str(exc)},
+    )
+
+
+def _validate_prompt_text(field_name: str, value: str | None) -> None:
+    """Reject prompt-injection patterns in untrusted text."""
+    try:
+        validate_prompt_input(field_name, value)
+    except PromptInjectionError as exc:
+        _raise_prompt_injection_error(exc)
+
+
+def _validate_prompt_model(value: BaseModel) -> None:
+    """Reject prompt-injection patterns in structured step payloads."""
+    try:
+        scan_for_prompt_injection(value)
+    except PromptInjectionError as exc:
+        _raise_prompt_injection_error(exc)
+
+
+async def _read_upload_file(cv_file: UploadFile) -> bytes:
+    """Read a bounded upload body and reject files over the configured limit."""
+    content = await cv_file.read(settings.max_upload_bytes + 1)
+    if len(content) > settings.max_upload_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "error": "UPLOAD_TOO_LARGE",
+                "message": "Uploaded file is too large.",
+            },
+        )
+    return content
 
 
 def _sse(data: dict) -> str:
@@ -151,10 +201,7 @@ async def tailor_cv(request: Request, tailor_request: TailorRequest):
         )
     except Exception as e:
         logger.exception("Failed to tailor CV")
-        raise HTTPException(
-            status_code=500,
-            detail={"error": "PROCESSING_ERROR", "message": str(e)},
-        )
+        _raise_server_error()
 
 
 @router.post("/tailor/stream")
@@ -181,7 +228,7 @@ async def tailor_cv_stream(request: Request, tailor_request: TailorRequest):
             yield _sse({"error": True, "message": e.message, "details": e.details})
         except Exception as e:
             logger.exception("Failed to tailor CV (streaming)")
-            yield _sse({"error": True, "message": str(e)})
+            yield _sse({"error": True, "message": GENERIC_PROCESSING_MESSAGE})
 
     return StreamingResponse(
         generate_events(),
@@ -205,13 +252,16 @@ async def tailor_cv_with_upload_stream(
     Streaming file-upload endpoint — reads file then runs pipeline with SSE.
     """
     _validate_file(cv_file.filename)
+    _validate_prompt_text("job_description", job_description)
+    _validate_prompt_text("user_instructions", user_instructions)
 
     async def generate_events() -> AsyncGenerator[str, None]:
         try:
             # Read file
             yield _sse({"step": 0, "total": 7, "message": "Reading uploaded CV file..."})
-            content = await cv_file.read()
+            content = await _read_upload_file(cv_file)
             cv_text = clean_extracted_text(extract_text(content, cv_file.filename or "upload.txt"))
+            _validate_prompt_text("cv_text", cv_text)
 
             options = TailorOptions(
                 generate_cover_letter=generate_cover_letter,
@@ -237,13 +287,20 @@ async def tailor_cv_with_upload_stream(
                 yield evt
             yield _sse({"complete": True, "result": result.model_dump()})
 
+        except HTTPException as e:
+            detail = e.detail if isinstance(e.detail, dict) else {}
+            yield _sse({
+                "error": True,
+                "code": detail.get("error", "UPLOAD_ERROR"),
+                "message": detail.get("message", "Uploaded file could not be processed."),
+            })
         except ValidationError as e:
             yield _sse({"error": True, "message": "Invalid options", "details": e.errors()})
         except TailoringError as e:
             yield _sse({"error": True, "message": e.message, "details": e.details})
         except Exception as e:
             logger.exception("Failed to tailor CV with file upload (streaming)")
-            yield _sse({"error": True, "message": str(e)})
+            yield _sse({"error": True, "message": GENERIC_PROCESSING_MESSAGE})
 
     return StreamingResponse(
         generate_events(),
@@ -267,14 +324,20 @@ async def tailor_cv_with_upload(
     Non-streaming file-upload endpoint.
     """
     _validate_file(cv_file.filename)
+    _validate_prompt_text("job_description", job_description)
+    _validate_prompt_text("user_instructions", user_instructions)
 
     try:
-        content = await cv_file.read()
+        content = await _read_upload_file(cv_file)
         cv_text = clean_extracted_text(extract_text(content, cv_file.filename or "upload.txt"))
+        _validate_prompt_text("cv_text", cv_text)
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.exception("Failed to parse uploaded CV")
         raise HTTPException(
             status_code=400,
-            detail={"error": "PARSE_FAILURE", "message": f"Could not extract text from file: {e}"},
+            detail={"error": "PARSE_FAILURE", "message": "Could not extract text from file."},
         )
 
     try:
@@ -314,12 +377,16 @@ async def parse_file(request: Request, cv_file: UploadFile = File(...)):
     """Parse an uploaded CV file to plain text (stage 0 for file uploads)."""
     _validate_file(cv_file.filename)
     try:
-        content = await cv_file.read()
+        content = await _read_upload_file(cv_file)
         cv_text = clean_extracted_text(extract_text(content, cv_file.filename or "upload.txt"))
+        _validate_prompt_text("cv_text", cv_text)
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.exception("Failed to parse uploaded CV")
         raise HTTPException(
             status_code=400,
-            detail={"error": "PARSE_FAILURE", "message": f"Could not extract text from file: {e}"},
+            detail={"error": "PARSE_FAILURE", "message": "Could not extract text from file."},
         )
     return {"cv_text": cv_text}
 
@@ -328,22 +395,21 @@ async def parse_file(request: Request, cv_file: UploadFile = File(...)):
 @limiter.limit("20/minute")
 async def map_step(request: Request, body: MapStepRequest):
     """Map job requirements to CV evidence (stage 3)."""
+    _validate_prompt_model(body)
     try:
         return await map_requirements_to_evidence(
             body.requirements, body.cv_facts, body.strictness_level
         )
     except Exception as e:
         logger.exception("Failed to map requirements to evidence")
-        raise HTTPException(
-            status_code=500,
-            detail={"error": "PROCESSING_ERROR", "message": str(e)},
-        )
+        _raise_server_error()
 
 
 @router.post("/generate-cv", response_model=GenerateCVStepResponse)
 @limiter.limit("10/minute")
 async def generate_cv_step(request: Request, body: GenerateCVStepRequest):
     """Generate the tailored CV and run quality checks (stages 4+5)."""
+    _validate_prompt_model(body)
     try:
         tailored_cv, changes_log, borderline_items = await generate_tailored_cv(
             body.requirements,
@@ -354,10 +420,7 @@ async def generate_cv_step(request: Request, body: GenerateCVStepRequest):
         )
     except Exception as e:
         logger.exception("Failed to generate tailored CV")
-        raise HTTPException(
-            status_code=500,
-            detail={"error": "PROCESSING_ERROR", "message": str(e)},
-        )
+        _raise_server_error()
 
     is_valid, errors, warnings, match_score = run_quality_checks(
         body.cv_facts,
@@ -391,6 +454,7 @@ async def generate_cv_step(request: Request, body: GenerateCVStepRequest):
 @limiter.limit("10/minute")
 async def cover_letter_step(request: Request, body: CoverLetterStepRequest):
     """Generate a cover letter (stage 6)."""
+    _validate_prompt_model(body)
     try:
         return await generate_cover_letter(
             body.requirements,
@@ -401,10 +465,7 @@ async def cover_letter_step(request: Request, body: CoverLetterStepRequest):
         )
     except Exception as e:
         logger.exception("Failed to generate cover letter")
-        raise HTTPException(
-            status_code=500,
-            detail={"error": "PROCESSING_ERROR", "message": str(e)},
-        )
+        _raise_server_error()
 
 
 @router.post("/extract-job", response_model=JobRequirements)
@@ -415,10 +476,7 @@ async def extract_job(request: Request, extract_request: ExtractJobRequest):
         return await extract_job_requirements(extract_request.job_description)
     except Exception as e:
         logger.exception("Failed to extract job requirements")
-        raise HTTPException(
-            status_code=500,
-            detail={"error": "EXTRACTION_FAILED", "message": str(e)},
-        )
+        _raise_server_error("EXTRACTION_FAILED")
 
 
 @router.post("/extract-cv", response_model=CVFacts)
@@ -429,10 +487,7 @@ async def extract_cv(request: Request, extract_request: ExtractCVRequest):
         return await extract_cv_facts(extract_request.cv_text)
     except Exception as e:
         logger.exception("Failed to extract CV facts")
-        raise HTTPException(
-            status_code=500,
-            detail={"error": "EXTRACTION_FAILED", "message": str(e)},
-        )
+        _raise_server_error("EXTRACTION_FAILED")
 
 
 @router.post("/export/{format}")
@@ -465,28 +520,4 @@ async def export_result(
         )
     except Exception as e:
         logger.exception(f"Failed to export as {format}")
-        raise HTTPException(
-            status_code=500,
-            detail={"error": "EXPORT_FAILED", "message": str(e)},
-        )
-
-
-@router.post("/set-api-key")
-async def set_api_key(request: Request, api_key_request: ApiKeyRequest):
-    """Set Gemini API key (debug mode only)."""
-    try:
-        if not settings.debug:
-            raise HTTPException(
-                status_code=403,
-                detail={
-                    "error": "FORBIDDEN",
-                    "message": "API key updates are disabled outside debug mode",
-                },
-            )
-        set_llm_api_key(api_key_request.api_key)
-        return {"status": "success", "message": "API key configured"}
-    except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail={"error": "INVALID_API_KEY", "message": str(e)},
-        )
+        _raise_server_error("EXPORT_FAILED")

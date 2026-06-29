@@ -17,20 +17,28 @@ import {
   AppBar,
   Toolbar,
   IconButton,
+  Tooltip,
   Dialog,
+  DialogTitle,
   DialogContent,
+  DialogActions,
+  TextField,
 } from '@mui/material';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import VpnKeyIcon from '@mui/icons-material/VpnKey';
+import LockIcon from '@mui/icons-material/Lock';
 
 import {
   JobDescriptionInput, CVUploader, OptionsPanel, ResultsDisplay, ExportOptions,
 } from './components';
 import {
   tailorCVOrchestrated,
+  getApiAccessKey,
+  setApiAccessKey,
   isApiError,
   type ProgressEvent,
 } from './services/api';
@@ -125,6 +133,9 @@ function App() {
   const [progressMessage, setProgressMessage] = useState('');
   const [totalSteps, setTotalSteps] = useState(6);
   const [progressComplete, setProgressComplete] = useState(false);
+  const [accessDialogOpen, setAccessDialogOpen] = useState(() => !getApiAccessKey());
+  const [apiAccessKeyInput, setApiAccessKeyInput] = useState('');
+  const [apiAccessKeyError, setApiAccessKeyError] = useState('');
 
   // Progress steps for display (will be updated by SSE)
   const progressSteps = [
@@ -138,6 +149,19 @@ function App() {
 
   // Validation
   const isStep1Valid = jobDescription.length >= 50 && (cvFile !== null || cvText.length >= 100);
+
+  const handleSaveApiAccessKey = () => {
+    const trimmed = apiAccessKeyInput.trim();
+    if (!trimmed) {
+      setApiAccessKeyError('Access key is required.');
+      return;
+    }
+    setApiAccessKey(trimmed);
+    setApiAccessKeyInput('');
+    setApiAccessKeyError('');
+    setAccessDialogOpen(false);
+    setError(null);
+  };
 
   const handleNext = () => {
     if (activeStep === 1) {
@@ -189,6 +213,32 @@ function App() {
             title: 'Processing error',
             message: 'The server failed to complete the request. Please retry.',
           };
+        case 'AUTH_REQUIRED':
+        case 'AUTH_INVALID':
+          return {
+            title: 'Access key required',
+            message: 'Enter the deployment access key and try again.',
+          };
+        case 'AUTH_NOT_CONFIGURED':
+          return {
+            title: 'Authentication is not configured',
+            message: 'Set TAILORCV_API_KEY on the backend before using the app.',
+          };
+        case 'RATE_LIMITED':
+          return {
+            title: 'Too many requests',
+            message: apiError.message,
+          };
+        case 'UPLOAD_TOO_LARGE':
+          return {
+            title: 'File too large',
+            message: apiError.message,
+          };
+        case 'PROMPT_INJECTION_DETECTED':
+          return {
+            title: 'Unsafe instructions detected',
+            message: 'Remove instructions that try to override system rules, then try again.',
+          };
         default:
           return {
             title: apiError.error || 'Request failed',
@@ -226,6 +276,15 @@ function App() {
   };
 
   const handleTailor = async () => {
+    if (!getApiAccessKey()) {
+      setAccessDialogOpen(true);
+      setError({
+        title: 'Access key required',
+        message: 'Enter the deployment access key before running the tailor.',
+      });
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setProgressStep(0);
@@ -277,6 +336,12 @@ function App() {
       setActiveStep(2);
     } catch (err) {
       console.error('Tailoring failed:', err);
+      if (
+        isApiError(err) &&
+        ['AUTH_REQUIRED', 'AUTH_INVALID', 'AUTH_NOT_CONFIGURED'].includes(err.response.data.error)
+      ) {
+        setAccessDialogOpen(true);
+      }
       setError(formatError(err));
     } finally {
       setLoading(false);
@@ -294,10 +359,25 @@ function App() {
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 700 }}>
             AI CV Tailor
           </Typography>
-          {activeStep === 2 && (
-            <IconButton onClick={handleReset} sx={{ color: 'primary.main' }}>
-              <RefreshIcon />
+          <Tooltip title="Access key">
+            <IconButton
+              aria-label="Set access key"
+              onClick={() => setAccessDialogOpen(true)}
+              sx={{ color: 'primary.main' }}
+            >
+              <VpnKeyIcon />
             </IconButton>
+          </Tooltip>
+          {activeStep === 2 && (
+            <Tooltip title="Start over">
+              <IconButton
+                aria-label="Start over"
+                onClick={handleReset}
+                sx={{ color: 'primary.main' }}
+              >
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
           )}
         </Toolbar>
       </AppBar>
@@ -503,6 +583,62 @@ function App() {
           AI CV Tailor - Never fabricates, only optimizes
         </Typography>
       </Box>
+
+      <Dialog
+        open={accessDialogOpen}
+        onClose={() => {
+          if (getApiAccessKey()) {
+            setAccessDialogOpen(false);
+          }
+        }}
+        PaperProps={{
+          sx: {
+            backgroundColor: 'background.paper',
+            backgroundImage: 'linear-gradient(145deg, #1e1e2e 0%, #2a2a3e 100%)',
+            borderRadius: 3,
+            border: '1px solid rgba(255,255,255,0.1)',
+            minWidth: { xs: 'calc(100vw - 32px)', sm: 420 },
+          },
+        }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <LockIcon color="primary" />
+          Access Key
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+            Enter the deployment access key to use the API.
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            type="password"
+            label="Access key"
+            value={apiAccessKeyInput}
+            error={!!apiAccessKeyError}
+            helperText={apiAccessKeyError || ' '}
+            onChange={(event) => {
+              setApiAccessKeyInput(event.target.value);
+              setApiAccessKeyError('');
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                handleSaveApiAccessKey();
+              }
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          {getApiAccessKey() && (
+            <Button onClick={() => setAccessDialogOpen(false)}>
+              Cancel
+            </Button>
+          )}
+          <Button variant="contained" onClick={handleSaveApiAccessKey}>
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Progress Dialog */}
       <Dialog

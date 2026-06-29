@@ -13,6 +13,13 @@ class Settings(BaseSettings):
     
     # API Keys
     gemini_api_key: str = ""
+    tailorcv_api_key: str = ""
+    api_auth_enabled: bool = True
+    api_key_header_name: str = "X-API-Key"
+
+    # Request protection
+    max_upload_bytes: int = 5 * 1024 * 1024
+    upload_request_overhead_bytes: int = 1024 * 1024
     
     # Application settings
     app_name: str = "AI CV Tailor"
@@ -39,6 +46,9 @@ class Settings(BaseSettings):
     # LLM settings
     gemini_model: str = "gemini-3.1-pro-preview"
     max_retries: int = 3
+
+    # Rate limiting
+    rate_limit_storage_uri: str = "redis://localhost:6379/0"
     
     class Config:
         env_file = ".env"

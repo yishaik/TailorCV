@@ -74,9 +74,12 @@ Every modification is traceable back to your original experience. The system inc
 1. Create a Vercel project connected to this repository.
 2. Configure required environment variables in Vercel:
    - `GEMINI_API_KEY`
+   - `TAILORCV_API_KEY`
+   - `RATE_LIMIT_STORAGE_URI` (Redis/Upstash `rediss://...` URL)
    - `CORS_ORIGINS` (comma-separated or JSON array)
 3. Keep `VITE_API_URL` unset to use same-origin `/api`, or set it explicitly if needed.
-4. Vercel auto-deploys on every push to `master`.
+4. Optional: set `VITE_TAILORCV_API_KEY` only for a private deployment. Vite exposes this value in the browser bundle, so public deployments should let users enter the access key in the app instead.
+5. Vercel auto-deploys on every push to `master`.
 
 Cloud architecture:
 - Frontend is served from `frontend/dist`.
@@ -103,8 +106,11 @@ copy .env.example .env       # Windows
 # cp .env.example .env       # Linux/Mac
 
 # Edit .env and add your GEMINI_API_KEY
+# Also set TAILORCV_API_KEY and a Redis RATE_LIMIT_STORAGE_URI
 notepad .env                 # Windows
 # nano .env                  # Linux/Mac
+
+# Run Redis locally or point RATE_LIMIT_STORAGE_URI at Upstash Redis
 
 # Start the server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -132,9 +138,11 @@ The application will be available at:
 ```bash
 # Set your API key (Windows)
 set GEMINI_API_KEY=your_api_key_here
+set TAILORCV_API_KEY=dev-only-change-me
 
 # Set your API key (Linux/Mac)
 export GEMINI_API_KEY=your_api_key_here
+export TAILORCV_API_KEY=dev-only-change-me
 
 # Build and run
 docker-compose up --build
@@ -267,14 +275,17 @@ Download your tailored CV in your preferred format:
 | `POST` | `/api/extract-job` | Extract job requirements only |
 | `POST` | `/api/extract-cv` | Extract CV facts only |
 | `POST` | `/api/export/{format}` | Export results (markdown/docx/pdf) |
-| `POST` | `/api/set-api-key` | Set API key for session |
 | `GET` | `/health` | Health check endpoint |
+
+All backend endpoints require `X-API-Key: <TAILORCV_API_KEY>` or
+`Authorization: Bearer <TAILORCV_API_KEY>`.
 
 ### Example Request
 
 ```bash
 curl -X POST "http://localhost:8000/api/tailor" \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: dev-only-change-me" \
   -d '{
     "job_description": "We are looking for a Senior Software Engineer...",
     "original_cv": "John Doe\nSoftware Engineer with 5 years experience...",
@@ -354,15 +365,20 @@ TailorCV/
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `GEMINI_API_KEY` | Yes | - | Google Gemini API key |
+| `TAILORCV_API_KEY` | Yes | - | Shared API key required for every backend endpoint |
+| `RATE_LIMIT_STORAGE_URI` | Yes | `redis://localhost:6379/0` | Redis/Upstash URL used by SlowAPI rate limiting |
 | `DEBUG` | No | `false` | Enable debug mode |
 | `GEMINI_MODEL` | No | `gemini-3.1-pro-preview` | Gemini model to use |
+| `MAX_UPLOAD_BYTES` | No | `5242880` | Maximum CV upload file size in bytes |
+| `API_AUTH_ENABLED` | No | `true` | Disable only for trusted local debugging/tests |
 | `CORS_ORIGINS` | No | `http://localhost:5173` | Allowed CORS origins |
 
 ### Frontend Environment
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VITE_API_URL` | `http://localhost:8000/api` | Backend API URL |
+| `VITE_API_URL` | `/api` | Backend API URL |
+| `VITE_TAILORCV_API_KEY` | - | Optional private-deployment convenience key. Do not treat it as secret because it is bundled into client JavaScript. |
 
 ---
 
@@ -408,12 +424,15 @@ docker-compose -f docker-compose.prod.yml up --build
 This repo includes a `vercel.json` that deploys the FastAPI backend as a serverless function and the Vite frontend as a static build.
 
 1. Create a new Vercel project and select this repository.
-2. Set the backend environment variable `GEMINI_API_KEY` in the Vercel project settings.
+2. Set required environment variables in the Vercel project settings:
+   - `GEMINI_API_KEY`
+   - `TAILORCV_API_KEY`
+   - `RATE_LIMIT_STORAGE_URI` using a Redis/Upstash `rediss://...` URL
 3. Deploy.
 
 Notes:
 - The frontend build uses `frontend/.env.production` to call the API at `/api` on the same domain.
-- The API docs are available at `/docs` on the deployed site.
+- The API docs and health endpoint are protected; use the same API key header when probing them.
 - Vercel uses `npm --prefix frontend ci`, so deployment installs match `frontend/package-lock.json`.
 
 ---

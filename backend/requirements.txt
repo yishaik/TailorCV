@@ -17,6 +17,7 @@ fpdf2>=2.7.8
 
 # Rate limiting
 slowapi>=0.1.9
+redis>=5.0.0
 
 # Testing
 pytest>=8.0.0

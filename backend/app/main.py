@@ -1,18 +1,27 @@
 """
 FastAPI application entry point.
 """
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from .config import get_settings
 from .routers import tailor
+from .utils.auth import require_api_key
 from .utils.rate_limit import limiter, rate_limit_handler
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
+
+UPLOAD_PATHS = {
+    "/api/parse-file",
+    "/api/tailor/upload",
+    "/api/tailor/upload/stream",
+}
 
 app = FastAPI(
     title=settings.app_name,
@@ -23,6 +32,35 @@ app = FastAPI(
 # Rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+
+
+@app.middleware("http")
+async def api_key_auth_middleware(request: Request, call_next):
+    """Require API key authentication before routing any endpoint."""
+    return await require_api_key(request, call_next, settings)
+
+
+@app.middleware("http")
+async def upload_size_middleware(request: Request, call_next):
+    """Reject oversized upload requests before multipart parsing."""
+    if request.url.path in UPLOAD_PATHS:
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                max_request_bytes = (
+                    settings.max_upload_bytes + settings.upload_request_overhead_bytes
+                )
+                if int(content_length) > max_request_bytes:
+                    return JSONResponse(
+                        status_code=413,
+                        content={
+                            "error": "UPLOAD_TOO_LARGE",
+                            "message": "Uploaded file is too large.",
+                        },
+                    )
+            except ValueError:
+                pass
+    return await call_next(request)
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -38,6 +76,19 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": "HTTP_ERROR", "message": str(exc.detail)},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Log internal failures without exposing exception details to clients."""
+    logger.exception("Unhandled request failure")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "INTERNAL_SERVER_ERROR",
+            "message": "An internal server error occurred.",
+        },
     )
 
 # Configure CORS

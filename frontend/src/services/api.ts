@@ -27,12 +27,47 @@ function resolveApiBaseUrl(): string {
 }
 
 const API_BASE_URL = resolveApiBaseUrl();
+const API_ACCESS_KEY_STORAGE_KEY = 'tailorcv_api_key';
+
+export function getApiAccessKey(): string {
+    const configuredKey = import.meta.env.VITE_TAILORCV_API_KEY?.trim();
+    if (configuredKey) {
+        return configuredKey;
+    }
+
+    if (typeof window === 'undefined') {
+        return '';
+    }
+
+    return window.sessionStorage.getItem(API_ACCESS_KEY_STORAGE_KEY)?.trim() ?? '';
+}
+
+export function setApiAccessKey(apiKey: string): void {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const trimmed = apiKey.trim();
+    if (trimmed) {
+        window.sessionStorage.setItem(API_ACCESS_KEY_STORAGE_KEY, trimmed);
+    } else {
+        window.sessionStorage.removeItem(API_ACCESS_KEY_STORAGE_KEY);
+    }
+}
 
 const api = axios.create({
     baseURL: API_BASE_URL,
     headers: {
         'Content-Type': 'application/json',
     },
+});
+
+api.interceptors.request.use((config) => {
+    const apiKey = getApiAccessKey();
+    if (apiKey) {
+        config.headers.set('X-API-Key', apiKey);
+    }
+    return config;
 });
 
 export async function tailorCV(request: TailorRequest): Promise<TailorResult> {
@@ -90,12 +125,6 @@ export async function exportResult(
         responseType: 'blob',
     });
     return response.data;
-}
-
-export async function setApiKey(apiKey: string): Promise<void> {
-    await api.post('/set-api-key', {
-        api_key: apiKey,
-    });
 }
 
 export function isApiError(error: unknown): error is { response: { data: ApiError } } {

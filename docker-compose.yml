@@ -1,4 +1,8 @@
 services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -7,9 +11,14 @@ services:
       - "8000:8000"
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - TAILORCV_API_KEY=${TAILORCV_API_KEY:-dev-only-change-me}
+      - RATE_LIMIT_STORAGE_URI=redis://redis:6379/0
+      - MAX_UPLOAD_BYTES=${MAX_UPLOAD_BYTES:-5242880}
       - DEBUG=false
     volumes:
       - ./backend:/app
+    depends_on:
+      - redis
     restart: unless-stopped
 
   frontend:

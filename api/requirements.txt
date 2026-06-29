@@ -17,6 +17,7 @@ fpdf2>=2.7.8
 
 # Rate limiting
 slowapi>=0.1.9
+redis>=5.0.0
 
 # Utilities
 python-dateutil>=2.8.2

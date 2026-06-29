@@ -1,8 +1,10 @@
 """
 Pydantic models for tailoring options and request/response structures.
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Literal, Optional
+
+from ..utils.prompt_security import validate_prompt_input_for_pydantic
 
 
 class TailorOptions(BaseModel):
@@ -30,6 +32,11 @@ class TailorOptions(BaseModel):
         description="Optional user notes or instructions for tailoring"
     )
 
+    @field_validator("user_instructions")
+    @classmethod
+    def reject_prompt_injection_in_user_instructions(cls, value):
+        return validate_prompt_input_for_pydantic("user_instructions", value)
+
 
 class TailorRequest(BaseModel):
     """Request model for the main tailor endpoint."""
@@ -49,6 +56,11 @@ class TailorRequest(BaseModel):
         description="Tailoring options"
     )
 
+    @field_validator("job_description", "original_cv")
+    @classmethod
+    def reject_prompt_injection_in_tailor_text(cls, value, info):
+        return validate_prompt_input_for_pydantic(info.field_name, value)
+
 
 class ExtractJobRequest(BaseModel):
     """Request model for extracting job requirements."""
@@ -58,6 +70,11 @@ class ExtractJobRequest(BaseModel):
         min_length=50,
         description="The job description to parse"
     )
+
+    @field_validator("job_description")
+    @classmethod
+    def reject_prompt_injection_in_job_description(cls, value):
+        return validate_prompt_input_for_pydantic("job_description", value)
 
 
 class ExtractCVRequest(BaseModel):
@@ -69,15 +86,10 @@ class ExtractCVRequest(BaseModel):
         description="Raw CV text"
     )
 
-
-class ApiKeyRequest(BaseModel):
-    """Request model for setting API key in dev."""
-
-    api_key: str = Field(
-        ...,
-        min_length=10,
-        description="Gemini API key"
-    )
+    @field_validator("cv_text")
+    @classmethod
+    def reject_prompt_injection_in_cv_text(cls, value):
+        return validate_prompt_input_for_pydantic("cv_text", value)
 
 
 class StrictnessConfig(BaseModel):

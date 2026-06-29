@@ -4,6 +4,11 @@ Shared test fixtures and factory functions.
 Provides mock data factories for all major Pydantic models
 so tests can build realistic objects without calling the LLM.
 """
+import os
+
+os.environ.setdefault("TAILORCV_API_KEY", "test-api-key")
+os.environ.setdefault("RATE_LIMIT_STORAGE_URI", "memory://")
+
 import pytest
 from unittest.mock import AsyncMock, patch
 
